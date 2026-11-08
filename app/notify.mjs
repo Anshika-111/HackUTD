@@ -26,7 +26,7 @@ export function createNotifier({ appDir, server = process.env.NTFY_SERVER || 'ht
       actions: msg.url && msg.actions ? msg.actions.slice(0, 3).map(a => ({ action: 'view', label: a.label, url: `${msg.url}?do=${a.action}`, clear: true })) : undefined };
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
-    const rec = { at: new Date().toISOString(), to: person.id, topic, kind: msg.kind, tags: msg.tags || [], title: msg.title, message: msg.message, priority: msg.priority, url: msg.url, replay_ts: msg.replay_ts, dryRun };
+    const rec = { at: new Date().toISOString(), to: person.id, topic, kind: msg.kind, refId: msg.refId, tags: msg.tags || [], title: msg.title, message: msg.message, priority: msg.priority, url: msg.url, replay_ts: msg.replay_ts, dryRun };
     sent.push(rec); if (sent.length > 500) sent.shift();
     onSend(rec);
     if (dryRun || person.virtual) return rec; // virtual people live on the dashboard only
@@ -37,5 +37,7 @@ export function createNotifier({ appDir, server = process.env.NTFY_SERVER || 'ht
     return rec;
   }
 
-  return { send, topicFor, sent: () => sent, dryRun, server };
+  // A new engine means new claim tokens: old pushes would point at alerts that no longer exist.
+  const clear = () => { sent.length = 0; };
+  return { send, topicFor, sent: () => sent, clear, dryRun, server };
 }

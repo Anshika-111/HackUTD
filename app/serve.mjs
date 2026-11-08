@@ -44,6 +44,7 @@ function loadDataset(folder) {
   console.log(`dataset ${folder}: ${ds.tel.rows.toLocaleString()} readings, ${ds.facs.length} facilities, ${sim.eng.state().people.length} people`);
 }
 function freshEngine(ds) {
+  notifier.clear(); // pushes from the previous engine carry tokens this one doesn't know
   const people = A.defaultPeople(ds, roles).map(p => ({ ...p, topic: p.virtual ? null : notifier.topicFor(p.id) }));
   const { people: _p, _comment, ...cfg } = roles;
   return A.createAlertEngine({ M, ds, people, config: { ...cfg, publicUrl: PUBLIC_URL }, notify: (p, m) => { notifier.send(p, m); } });

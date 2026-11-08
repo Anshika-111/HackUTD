@@ -6,342 +6,388 @@
 <title>TankFul</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* TankFul console. World and tokens: DESIGN.md. A petrol rail owns the chrome; the work area is stone white. */
   :root {
     color-scheme: light;
-    --page: #1c2240; --page-2: #0d0f22; --surface: #fff6e3; --surface-2: #f3e9d2;
-    --ink: #1a1930; --ink-2: #3d3b58; --muted: #5a5870; --cream-2: #c9c6e0;
-    --grid: #e4d9bf; --axis: #c9bd9e; --ring: #1a1930;
-    --s1: #4a9fe0; --s2: #f08a2c;
-    --good: #4fae5c; --warning: #f6c445; --serious: #f08a2c; --critical: #e4533a; --wait: #4a9fe0;
-    --display: Fredoka, Nunito, sans-serif;
+    --paper: #f7f6f2; --paper-2: #efede7; --line: #d6d3ca;
+    --ink: #1d2224; --ink-2: #4b5357; --ink-3: #646c70;
+    --rail: #16413d; --rail-2: #0f302d; --rail-ink: #e7efe9; --rail-ink-2: #9fbfb4;
+    --mint: #2d8f74; --mint-bg: #eaf5f0; --amber: #d9980f; --amber-bg: #fbf3df;
+    --orange: #e3611c; --orange-bg: #fdf1e9; --red: #c7301f; --red-bg: #fbe9e6; --water: #3a7fb0;
+    --ui: "Geologica", "Helvetica Neue", Arial, sans-serif;
+    --mono: "Azeret Mono", ui-monospace, Menlo, monospace;
   }
   * { box-sizing: border-box; }
-  html { background: var(--page); }
-  body { margin: 0; background: var(--page); color: var(--ink); font: 600 14px/1.4 Nunito, system-ui, -apple-system, sans-serif; }
-  ::selection { background: var(--warning); color: var(--ink); }
-  h1, h2, h3, .num, .stamp, button, .btn, .count { font-family: var(--display); }
-  h1 { font-size: 24px; font-weight: 700; margin: 0 8px 0 0; letter-spacing: -.01em; color: var(--surface); }
-  h1 span { color: var(--cream-2); font-weight: 400; }
-  h2 { font-size: 20px; font-weight: 600; margin: 0 0 10px; letter-spacing: -.01em; }
-  h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
-  .num, .count, #clock, table { font-variant-numeric: tabular-nums; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.4 var(--ui); display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+  ::selection { background: #cfe3dc; color: var(--ink); }
+  h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
   a { color: var(--ink); }
-  a:hover { color: var(--critical); }
+  .num, .mono, table { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--mono); letter-spacing: -.01em; }
+  .muted { color: var(--ink-3); } .ink2 { color: var(--ink-2); }
+  .good-text { color: var(--mint); }
+  code { font-family: var(--mono); font-size: 12px; background: var(--paper-2); padding: 1px 5px; border-radius: 4px; }
+  :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 
-  /* paper panels on a night board */
-  .card { background: var(--surface); border: 2.5px solid var(--ink); border-radius: 18px; box-shadow: 0 6px 0 var(--page-2); padding: 18px 20px; min-width: 0; }
-  .muted { color: var(--muted); } .ink2 { color: var(--ink-2); }
-  .good-text { color: #2f7f3b; }
-  .wide, .field, .kpis { grid-column: 1 / -1; }
+  /* controls */
+  button, .btn, label.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 7px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: 500 15px var(--ui); cursor: pointer; white-space: nowrap; transition: background .15s ease-out, border-color .15s ease-out; }
+  button:hover, label.btn:hover { background: var(--paper-2); }
+  button.primary { background: var(--rail); border-color: var(--rail); color: #fff; } button.primary:hover { background: var(--rail-2); }
+  button.quiet { background: transparent; border-color: transparent; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; padding: 0 6px; } button.quiet:hover { background: transparent; color: var(--ink); }
+  button.mini, .mini { height: 30px; padding: 0 11px; font-size: 13px; border-radius: 6px; }
+  button:disabled { opacity: .5; cursor: default; }
+  select { appearance: none; -webkit-appearance: none; height: 40px; padding: 0 30px 0 12px; border-radius: 7px; border: 1px solid var(--line); background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5l3.5 3.5 3.5-3.5' fill='none' stroke='%231d2224' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 10px center / 11px; font: 500 14px var(--ui); color: var(--ink); }
+  input[type=range] { accent-color: var(--rail-ink); }
+  input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--rail); }
 
-  button, select, label.btn, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 6px 16px; border-radius: 999px; border: 2.5px solid var(--ink); background: var(--surface); color: var(--ink); font: 600 15px/1 var(--display); box-shadow: 0 4px 0 var(--ink); cursor: pointer; }
-  button:hover, label.btn:hover { transform: translateY(1px); box-shadow: 0 3px 0 var(--ink); }
-  button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--s1); outline-offset: 3px; }
-  button.primary, .btn.go { background: var(--good); }
-  button.mini, .mini { min-height: 32px; padding: 3px 12px; font-size: 13px; box-shadow: 0 3px 0 var(--ink); }
-  select { appearance: none; -webkit-appearance: none; padding-right: 30px; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%231a1930' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center / 12px; font-family: Nunito, sans-serif; font-weight: 800; font-size: 13px; }
-  input[type=range] { accent-color: var(--warning); }
-  input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--good); }
+  /* rail */
+  .rail { background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; gap: 22px; padding: 22px 18px 18px; position: sticky; top: 0; height: 100vh; overflow: auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; letter-spacing: -.01em; padding: 0 4px; }
+  .brand svg { width: 26px; height: 26px; flex: none; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav button { justify-content: space-between; height: 38px; padding: 0 12px; border: 0; background: transparent; color: var(--rail-ink-2); font-weight: 500; font-size: 15px; border-radius: 6px; }
+  .nav button:hover { background: rgba(255,255,255,.06); color: var(--rail-ink); }
+  .nav button.on { background: var(--rail-2); color: var(--rail-ink); }
+  .nav .cnt { font-size: 11px; font-weight: 600; background: var(--orange); color: #fff; padding: 1px 7px; border-radius: 999px; }
+  .nav .cnt:empty { display: none; }
+  .lab { font-size: 11px; color: var(--rail-ink-2); text-transform: uppercase; letter-spacing: .06em; font-weight: 500; }
+  .replay { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(255,255,255,.12); padding-top: 16px; }
+  .replay .lab { display: flex; justify-content: space-between; }
+  .replay .row { display: flex; gap: 6px; }
+  .replay button, .replay select, .replay label.btn { height: 34px; font-size: 13px; padding: 0 10px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); color: var(--rail-ink); flex: 1; }
+  .replay button:hover, .replay label.btn:hover { background: rgba(255,255,255,.12); }
+  .replay button.primary { background: var(--rail-ink); color: var(--rail); border-color: var(--rail-ink); }
+  .replay select { background: rgba(255,255,255,.06) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5l3.5 3.5 3.5-3.5' fill='none' stroke='%23e7efe9' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 10px center / 11px; min-width: 0; width: 100%; }
+  .replay input[type=range] { width: 100%; margin: 4px 0 0; }
+  .replay .hold { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--rail-ink-2); cursor: pointer; margin-top: 4px; }
+  .clockbox { margin-top: auto; border-top: 1px solid rgba(255,255,255,.12); padding-top: 14px; }
+  .clockbox .t { font: 500 26px/1.1 var(--mono); margin: 4px 0 2px; }
+  .clockbox .d { font-size: 12px; color: var(--rail-ink-2); min-height: 16px; }
+  .held { display: none; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: #ffd8bf; margin-top: 10px; }
+  .held.on { display: inline-flex; }
+  .held i { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 4px rgba(227,97,28,.25); animation: pulse 1.6s ease-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(227,97,28,.12); } }
+  @media (prefers-reduced-motion: reduce) { .held i { animation: none; } * { transition: none !important; } }
 
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 28px; border-bottom: 2.5px solid var(--page-2); position: sticky; top: 0; background: var(--page); z-index: 5; color: var(--surface); }
-  header .logo { width: 42px; height: 42px; flex: none; }
-  #clock { font-family: var(--display); font-size: 21px; font-weight: 600; min-width: 190px; color: var(--surface); }
-  #slider { flex: 1 1 220px; min-width: 160px; }
-  .hold { background: var(--wait); color: var(--surface); border: 2.5px solid var(--ink); border-radius: 999px; padding: 6px 14px; font: 600 14px var(--display); display: none; }
-  .hold.on { display: inline-block; }
+  /* work area */
+  .work { min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 32px; border-bottom: 1px solid var(--line); background: var(--paper); position: sticky; top: 0; z-index: 5; }
+  .topbar h1 { font-size: 18px; }
+  .topbar .saved { margin-left: auto; font-size: 14px; color: var(--ink-2); white-space: nowrap; }
+  .topbar .saved b { color: var(--mint); font-weight: 600; font-size: 16px; }
+  .topbar .mini { color: var(--ink-2); }
+  .view { padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 24px; }
+  .view[hidden] { display: none; }
 
-  main { display: grid; gap: 24px; padding: 26px 28px 40px; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+  .panel > h2 { font-size: 14px; padding: 15px 18px 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .panel > h2 span { font-weight: 400; color: var(--ink-3); font-size: 13px; }
+  .panel .body { padding: 16px 18px; }
+  .rows > div { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--paper-2); font-size: 14px; }
+  .rows > div:last-child { border-bottom: 0; }
+  .rows small { display: block; color: var(--ink-2); font-size: 13px; }
+  .rows .act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .empty { padding: 18px; color: var(--ink-3); font-size: 14px; }
 
-  /* decision ticket */
-  .ticket { position: relative; padding: 22px 26px 20px; }
-  .ticket .kicker { font-size: 12px; font-weight: 800; letter-spacing: .05em; color: var(--muted); text-transform: uppercase; }
-  .ticket h2 { font-size: 34px; font-weight: 700; margin: 2px 0 6px; letter-spacing: -.02em; }
-  .stamp { position: absolute; right: 22px; top: 18px; transform: rotate(-7deg); border: 3.5px solid var(--serious); color: var(--serious); border-radius: 10px; padding: 2px 12px; font-size: 28px; font-weight: 700; letter-spacing: .06em; line-height: 1.1; }
-  .stamp.critical { border-color: var(--critical); color: var(--critical); } .stamp.low { border-color: #b8891a; color: #b8891a; } .stamp.ok { border-color: #2f7f3b; color: #2f7f3b; }
-  .tk-grid { display: grid; grid-template-columns: 110px 1fr; gap: 22px; align-items: center; }
-  .tk-big { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  .tk-big .count { font-size: 40px; line-height: 1; }
-  .tk-big .count.small { font-size: 26px; }
-  .timeline { position: relative; height: 34px; margin: 12px 0 6px; border: 2.5px solid var(--ink); border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-  .timeline i { position: absolute; top: 0; bottom: 0; }
-  .timeline b { position: absolute; top: -2px; bottom: -2px; width: 4px; background: var(--ink); }
-  .tk-ticks { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; }
-  .money { display: grid; grid-template-columns: 170px 1fr 84px; align-items: center; gap: 12px; margin: 8px 0; }
-  .money .bar { height: 30px; border-radius: 999px; border: 2.5px solid var(--ink); overflow: hidden; background: var(--surface-2); margin: 0; }
-  .money .bar i { display: block; height: 100%; border-radius: 0; }
-  .money .num { font-size: 20px; text-align: right; font-weight: 600; }
-  .money small { display: block; color: var(--muted); font-size: 12px; }
-  .tk-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 18px; }
-  .tk-actions .note { margin-left: auto; font-size: 13px; color: var(--muted); }
-  .tk-empty { display: flex; align-items: center; gap: 18px; }
+  .chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; color: #fff; background: var(--ink-3); }
+  .chip.high, .chip.serious { background: var(--orange); } .chip.critical { background: var(--red); } .chip.low, .chip.warning { background: var(--amber); } .chip.ok, .chip.good { background: var(--mint); } .chip.wait { background: var(--water); }
+  .chip.soft { background: var(--paper-2); color: var(--ink-2); font-weight: 500; }
 
-  /* Sal */
-  .side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-  .bubble { position: relative; background: var(--surface); border: 2.5px solid var(--ink); border-radius: 18px; padding: 16px 18px; font-size: 17px; line-height: 1.35; font-weight: 700; box-shadow: 0 6px 0 var(--page-2); }
-  .bubble:after { content: ""; position: absolute; left: 52px; bottom: -18px; border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 18px solid var(--ink); }
-  .bubble:before { content: ""; position: absolute; left: 55px; bottom: -13px; border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 14px solid var(--surface); z-index: 1; }
-  .sal-row { display: flex; align-items: flex-end; gap: 10px; padding-left: 8px; color: var(--surface); }
-  .sal-row .who { font-size: 13px; padding-bottom: 18px; color: var(--cream-2); } .sal-row .who b { font-family: var(--display); font-size: 16px; color: var(--surface); }
-  #sal { width: 190px; height: 190px; flex: none; }
-  #sal .calm, #sal .point, #sal .worry, #sal .glad { display: none; }
-  #sal.calm .calm, #sal.point .point, #sal.worry .worry, #sal.glad .glad { display: inline; }
+  /* Now: ticket + side */
+  .nowgrid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+  .ticket { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px -16px rgba(29,34,36,.35); display: flex; flex-direction: column; min-height: 560px; }
+  .ticket .head { padding: 26px 30px 0; }
+  .ticket h2 { font-size: 30px; line-height: 1.1; letter-spacing: -.02em; margin: 10px 0 6px; text-wrap: balance; cursor: pointer; }
+  .ticket .sub { font-size: 16px; color: var(--ink-2); max-width: 64ch; }
+  .ruler { padding: 20px 30px 6px; }
+  .ruler svg { width: 100%; height: 96px; display: block; }
+  .todo { margin: 14px 30px 0; background: var(--orange-bg); border: 1px solid #f3cdb6; border-radius: 10px; padding: 18px 22px 20px; }
+  .todo.done { background: var(--mint-bg); border-color: #bfdfd3; } .todo.done .k { color: var(--mint); }
+  .todo.bad { background: var(--red-bg); border-color: #efc1ba; } .todo.bad .k { color: var(--red); }
+  .todo.calm { background: var(--amber-bg); border-color: #efdcae; } .todo.calm .k { color: #a4720a; }
+  .todo .k { font-size: 13px; font-weight: 600; color: var(--orange); text-transform: uppercase; letter-spacing: .05em; }
+  .todo .act { display: flex; align-items: baseline; gap: 14px; margin-top: 6px; flex-wrap: wrap; }
+  .todo .act h3 { font-size: 24px; line-height: 1.15; letter-spacing: -.015em; }
+  .todo .act .cost { font: 500 22px/1 var(--mono); }
+  .todo .why { margin-top: 8px; font-size: 15px; color: var(--ink-2); max-width: 70ch; }
+  .todo .why b { color: var(--ink); font-weight: 500; }
+  .todo .row { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .todo .row button.primary { height: 46px; font-size: 16px; padding: 0 22px; }
+  .todo .status { font-size: 13px; color: var(--ink-2); margin-top: 12px; }
+  .more { margin: 14px 30px 0; border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; font-size: 14px; }
+  .more h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+  .more table { width: 100%; border-collapse: collapse; }
+  .more td { padding: 6px 4px; border-top: 1px solid var(--paper-2); } .more tr:first-child td { border-top: 0; }
+  .more td:last-child { text-align: right; font-family: var(--mono); }
+  .more tr.best td { color: var(--mint); font-weight: 500; }
+  .more .ev { color: var(--ink-2); line-height: 1.5; }
+  .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 22px 30px 26px; margin-top: auto; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .step { padding: 14px 18px 16px; border-right: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
+  .step:last-child { border-right: 0; }
+  .step .n { display: flex; align-items: flex-start; gap: 8px; font-weight: 600; color: var(--ink); margin-bottom: 4px; line-height: 1.3; }
+  .step .n i { width: 22px; height: 22px; margin-top: -1px; border-radius: 50%; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font: 600 11px var(--ui); color: var(--ink-3); font-style: normal; flex: none; }
+  .step.now { background: var(--orange-bg); } .step.now .n i { border-color: var(--orange); background: var(--orange); color: #fff; }
+  .step.done .n i { border-color: var(--mint); background: var(--mint); color: #fff; }
+  .side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .qi { display: grid; grid-template-columns: 4px 1fr auto; gap: 12px; padding: 12px 18px 12px 14px; border-bottom: 1px solid var(--paper-2); align-items: center; cursor: pointer; }
+  .qi:hover { background: var(--paper); }
+  .qi:last-child { border-bottom: 0; }
+  .qi i { width: 4px; min-height: 36px; height: 100%; border-radius: 2px; background: var(--amber); }
+  .qi.critical i { background: var(--red); } .qi.high i { background: var(--orange); } .qi.wait i { background: var(--water); } .qi.ok i { background: var(--mint); }
+  .qi .t { font-weight: 500; font-size: 14px; } .qi .s { font-size: 13px; color: var(--ink-2); }
+  .qi .r { text-align: right; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+  .qi .r b { display: block; font: 500 14px var(--mono); color: var(--ink); }
+  .qi .qa { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .people > div { display: grid; grid-template-columns: 10px 1fr; gap: 10px; align-items: start; padding: 12px 18px; border-bottom: 1px solid var(--paper-2); font-size: 14px; }
+  .people > .foot { display: block; padding: 8px 12px 10px; }
+  .people > div:last-child { border-bottom: 0; }
+  .people i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); margin-top: 5px; }
+  .people .pinged i { background: var(--orange); } .people .busy i { background: var(--water); } .people .off { opacity: .55; }
+  .people b { font-weight: 500; } .people small { display: block; color: var(--ink-2); font-size: 13px; }
+  .people .act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .people .act a { text-decoration: none; }
+  .glance { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 16px 18px 12px; }
+  .sys { font-size: 12px; color: var(--ink-2); } .sys b { color: var(--ink); font-weight: 500; }
+  .sys .dots { display: flex; gap: 5px; margin-top: 6px; }
+  .sys .dots i { width: 16px; height: 16px; border-radius: 3px; background: #cfe3dc; cursor: pointer; }
+  .sys .dots i.bad { background: var(--red); } .sys .dots i.warn { background: var(--orange); } .sys .dots i.watch { background: var(--amber); } .sys .dots i.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .glance-note { padding: 0 18px 14px; font-size: 12px; color: var(--ink-3); }
 
-  /* scoreboard */
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
-  .kpi { background: transparent; border: 2.5px solid var(--cream-2); color: var(--surface); box-shadow: none; padding: 12px 16px; border-radius: 14px; }
-  .kpi .l { color: var(--cream-2); font-size: 12px; font-weight: 800; }
-  .kpi .v { font-family: var(--display); font-size: 26px; font-weight: 600; margin-top: 2px; }
-  .kpi .s { color: var(--cream-2); font-size: 12px; font-weight: 600; }
-  .kpi .good-text { color: #8fe09a; }
+  /* Alerts */
+  .two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .alerts { display: flex; flex-direction: column; }
+  .alert { padding: 16px 18px; border-bottom: 1px solid var(--paper-2); cursor: pointer; }
+  .alert:last-child { border-bottom: 0; } .alert:hover { background: var(--paper); }
+  .alert .top { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 6px; }
+  .alert .top b { font-size: 15px; }
+  .alert .big { font: 500 20px/1.2 var(--ui); margin: 2px 0; }
+  .alert .big .mono { font-weight: 500; }
+  .bar { height: 8px; background: var(--paper-2); border-radius: 4px; position: relative; margin: 8px 0; }
+  .bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--water); }
+  .bar > b { position: absolute; top: -3px; bottom: -3px; width: 2px; }
+  table.alt { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.alt td { padding: 4px 4px; border-top: 1px solid var(--paper-2); }
+  table.alt td:last-child { text-align: right; font-family: var(--mono); }
+  table.alt tr.best td { color: var(--mint); font-weight: 500; }
+  .note { font-size: 13px; color: var(--ink-2); }
 
-  /* map */
-  #map { width: 100%; height: 480px; display: block; }
-  #map text { fill: var(--ink-2); font: 800 11px Nunito, sans-serif; }
-  #map .fac { cursor: pointer; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; font-weight: 800; color: var(--ink-2); margin-top: 8px; }
+  /* Network */
+  #map { width: 100%; height: 520px; display: block; }
+  #map text { font: 500 11px var(--ui); fill: var(--ink-2); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); padding: 0 18px 14px; }
+  .dotl { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+  .charts canvas { width: 100%; height: 200px; display: block; }
+  .charts .legend { padding: 8px 0 0; }
+  .tip { position: fixed; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; display: none; z-index: 10; box-shadow: 0 8px 20px -10px rgba(0,0,0,.3); }
 
-  /* alerts list */
-  .alerts { display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow: auto; padding-right: 4px; }
-  .alert { border: 2.5px solid var(--ink); border-radius: 14px; padding: 12px 14px; background: var(--surface-2); cursor: pointer; }
-  .alert .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-  .tag { font: 600 12px var(--display); padding: 2px 9px; border-radius: 999px; border: 2px solid var(--ink); white-space: nowrap; letter-spacing: .03em; }
-  .tag.critical { background: var(--critical); color: var(--surface); } .tag.serious { background: var(--serious); } .tag.warning { background: var(--warning); } .tag.good { background: var(--good); }
-  .count { font-size: 24px; font-weight: 600; }
-  .bar { height: 10px; background: var(--surface); border: 2px solid var(--ink); border-radius: 999px; position: relative; margin: 8px 0; overflow: visible; }
-  .bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--s1); }
-  .bar > b { position: absolute; top: -4px; bottom: -4px; width: 3px; }
-  table.alt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
-  table.alt td { padding: 3px 4px; border-top: 2px dashed var(--grid); }
-  table.alt td:last-child { text-align: right; }
-  table.alt tr.best td { color: #2f7f3b; font-weight: 800; }
+  /* History */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+  .kpi { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
+  .kpi .l { font-size: 12px; color: var(--ink-2); }
+  .kpi .v { font: 600 24px/1.1 var(--ui); margin-top: 4px; letter-spacing: -.01em; }
+  .kpi .s { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+  .log > div, .audit > div { padding: 10px 18px; border-bottom: 1px solid var(--paper-2); font-size: 13px; }
+  .log > div:last-child, .audit > div:last-child { border-bottom: 0; }
+  .log b, .audit b { font-weight: 500; }
+  .audit { max-height: 520px; overflow: auto; }
+  .log { max-height: 520px; overflow: auto; }
+  .how ol { margin: 0; padding-left: 20px; font-size: 14px; color: var(--ink-2); } .how li { margin-bottom: 8px; } .how b { color: var(--ink); font-weight: 500; }
 
-  /* field: crew, work, audit */
-  .fgrid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-  .frow { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 0; border-top: 2px dashed var(--grid); font-size: 13px; }
-  .frow:first-child { border-top: 0; }
-  .frow .who { min-width: 0; }
-  .frow small { color: var(--muted); display: block; }
-  .pill { font: 600 12px var(--display); padding: 2px 9px; border-radius: 999px; border: 2px solid var(--ink); background: var(--surface); white-space: nowrap; letter-spacing: .03em; }
-  .pill.critical { background: var(--critical); color: var(--surface); } .pill.high { background: var(--serious); } .pill.low { background: var(--warning); } .pill.ok { background: var(--good); } .pill.wait { background: var(--wait); color: var(--surface); }
-  #f-people, #f-alerts, #f-work { max-height: 320px; overflow: auto; }
-  .off { opacity: .5; }
-  .strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 8px; }
-  .strip::-webkit-scrollbar { height: 10px; } .strip::-webkit-scrollbar-thumb { background: var(--ink); border-radius: 999px; border: 2px solid var(--surface); }
-  .panel { flex: none; width: 230px; background: var(--surface); border: 2.5px solid var(--ink); border-radius: 14px; padding: 10px 14px; box-shadow: 0 4px 0 var(--ink); font-size: 13px; }
-  .panel b { display: block; font: 600 15px var(--display); margin-bottom: 3px; }
-  .panel.push { border-color: var(--serious); box-shadow: 0 4px 0 var(--serious); }
-  .panel.human { border-color: var(--good); box-shadow: 0 4px 0 var(--good); }
-  .audit { font-size: 12px; max-height: 220px; overflow: auto; color: var(--ink-2); }
-  .audit div { padding: 3px 0; border-top: 2px dashed var(--grid); } .audit b { color: var(--ink); }
-
-  /* charts and log */
-  .charts canvas { width: 100%; height: 190px; display: block; }
-  .tip { position: fixed; pointer-events: none; background: var(--surface); border: 2.5px solid var(--ink); border-radius: 10px; padding: 6px 10px; font-size: 12px; display: none; z-index: 10; box-shadow: 0 4px 0 var(--ink); }
-  .log { font-size: 12px; max-height: 260px; overflow: auto; }
-  .log div { padding: 5px 0; border-top: 2px dashed var(--grid); }
-  .how ol { margin: 0; padding-left: 20px; color: var(--ink); font-size: 13px; } .how li { margin-bottom: 4px; }
-
-  /* savings */
+  /* Savings */
   .save3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
-  .bar2 { height: 30px; border-radius: 999px; border: 2.5px solid var(--ink); display: flex; align-items: center; padding: 0 12px; font: 600 14px var(--display); margin: 6px 0; white-space: nowrap; }
-  .mrow { padding: 8px 0; border-top: 2px dashed var(--grid); cursor: pointer; font-size: 13px; }
-  .mrow .track { height: 6px; background: var(--surface-2); border: 2px solid var(--ink); border-radius: 999px; margin-top: 8px; position: relative; }
-  .mrow .track i { position: absolute; left: -2px; top: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--warning); border: 2px solid var(--ink); }
-  .mrow .track b { position: absolute; right: -2px; top: -9px; color: var(--critical); font-size: 14px; }
+  .bar2 { height: 30px; border-radius: 6px; display: flex; align-items: center; padding: 0 12px; font: 500 14px var(--ui); margin: 6px 0; white-space: nowrap; color: #fff; }
+  .mrow { padding: 10px 0; border-top: 1px solid var(--paper-2); cursor: pointer; font-size: 13px; }
+  .mrow:first-child { border-top: 0; }
+  .mrow .track { height: 4px; background: var(--paper-2); border-radius: 2px; margin-top: 10px; position: relative; }
+  .mrow .track i { position: absolute; left: 0; top: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--amber); }
+  .mrow .track b { position: absolute; right: -2px; top: -9px; color: var(--red); font-size: 14px; }
   table.fleet { border-collapse: collapse; font-size: 13px; width: 100%; }
-  table.fleet td { padding: 5px 4px; border-top: 2px dashed var(--grid); }
-  table.fleet td:last-child { text-align: right; }
-  table.fleet button { min-height: 26px; padding: 0 9px; font-size: 14px; box-shadow: 0 2px 0 var(--ink); }
+  table.fleet td { padding: 6px 4px; border-top: 1px solid var(--paper-2); }
+  table.fleet td:last-child { text-align: right; font-family: var(--mono); }
+  table.fleet button { height: 26px; width: 26px; padding: 0; font-size: 15px; }
 
-  /* stress test */
-  .st-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  /* Planner test */
+  .st-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   .st-grid { display: flex; flex-wrap: wrap; gap: 3px; max-height: 210px; overflow: auto; }
-  .st-grid i { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--good); cursor: pointer; }
-  .st-grid i.bad { background: var(--critical); }
-  .st-grid i.joint { background: var(--surface); }
-  .st-grid i.joint.bad { background: var(--surface); border-color: var(--critical); border-width: 3px; }
-  .st-grid i.sel { outline: 3px solid var(--s1); }
-  .st-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 14px; }
-  .st-stats > div { border: 2.5px solid var(--ink); border-radius: 14px; padding: 10px 14px; }
-  .st-stats b { display: block; font: 600 22px var(--display); }
-  .st-stats small { color: var(--muted); }
-  .st-stats .mix { padding: 0; background: none; border-radius: 4px; }
-  .mix { display: flex; height: 18px; border-radius: 999px; overflow: hidden; margin-top: 6px; gap: 2px; border: 2px solid var(--ink); }
+  .st-grid i { width: 12px; height: 12px; border-radius: 3px; background: var(--mint); cursor: pointer; }
+  .st-grid i.bad { background: var(--red); }
+  .st-grid i.joint { background: #fff; border: 1.5px solid var(--mint); }
+  .st-grid i.joint.bad { border-color: var(--red); border-width: 3px; }
+  .st-grid i.sel { outline: 2px solid var(--ink); }
+  .st-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-top: 16px; }
+  .st-stats > div { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff; }
+  .st-stats b { display: block; font: 600 22px var(--ui); }
+  .st-stats small { color: var(--ink-3); font-size: 12px; }
+  .mix { display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin-top: 6px; gap: 2px; }
   .mix span { display: block; height: 100%; }
-  .st-live { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.4fr); gap: 20px; margin-bottom: 12px; }
-  .st-now canvas { width: 100%; height: 180px; display: block; background: var(--surface-2); border: 2.5px solid var(--ink); border-radius: 14px; }
-  .st-now-t { font-size: 13px; margin-top: 8px; line-height: 1.5; }
+  .st-live { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.4fr); gap: 24px; margin: 16px 0; }
+  .st-now canvas { width: 100%; height: 180px; display: block; background: var(--paper-2); border-radius: 8px; }
+  .st-now-t { font-size: 13px; margin-top: 8px; line-height: 1.5; color: var(--ink-2); } .st-now-t b { color: var(--ink); font-weight: 500; }
   .st-feed { overflow: hidden; }
   .st-feed table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .st-feed th { text-align: left; color: var(--muted); font-weight: 800; padding: 3px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  .st-feed td { padding: 4px; border-top: 2px dashed var(--grid); white-space: nowrap; }
+  .st-feed th { text-align: left; color: var(--ink-3); font-weight: 500; padding: 3px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .st-feed td { padding: 4px; border-top: 1px solid var(--paper-2); white-space: nowrap; }
   .st-feed td.pl { max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
-  .st-feed tr.new { animation: rowin .35s; } @keyframes rowin { from { background: #f6c44566; } }
-  .st-detail { margin-top: 10px; font-size: 13px; color: var(--ink-2); min-height: 18px; }
-  .st-detail b { color: var(--ink); }
-  #drop { padding: 40px; text-align: center; margin: 24px 28px; }
-  code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+  .st-feed tr.new { animation: rowin .35s; } @keyframes rowin { from { background: var(--amber-bg); } }
+  .st-detail { margin-top: 10px; font-size: 13px; color: var(--ink-2); min-height: 18px; } .st-detail b { color: var(--ink); }
+  #drop { margin: 24px 32px; padding: 32px; background: #fff; border: 1px solid var(--line); border-radius: 12px; max-width: 70ch; color: var(--ink-2); }
 
-  @media (max-width: 980px) { main { grid-template-columns: 1fr; padding: 16px; } .st-live { grid-template-columns: 1fr; } #map { height: 640px; } .tk-grid { grid-template-columns: 1fr; } .stamp { position: static; display: inline-block; margin-bottom: 8px; } .money { grid-template-columns: 1fr 70px; } .money .bar { grid-column: 1 / -1; } header { padding: 10px 16px; } }
+  @media (max-width: 1100px) { .nowgrid, .two, .st-live { grid-template-columns: 1fr; } }
+  @media (max-width: 760px) {
+    body { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; }
+    .view { padding: 16px; } .topbar { padding: 0 16px; }
+    .ticket .head { padding: 20px 18px 0; } .ruler { padding: 16px 18px 0; } .todo, .more, .steps { margin-left: 18px; margin-right: 18px; }
+    .steps { grid-template-columns: 1fr; } .step { border-right: 0; border-bottom: 1px solid var(--line); }
+    .glance { grid-template-columns: repeat(3, 1fr); }
+  }
 </style>
 </head>
 <body>
-<header>
-  <svg class="logo" viewBox="0 0 140 170" aria-hidden="true"><path d="M70 22C70 22 24 78 24 110a46 46 0 0 0 92 0C116 78 70 22 70 22Z" fill="#4a9fe0" stroke="#fff6e3" stroke-width="7" stroke-linejoin="round"/><path d="M38 50a32 26 0 0 1 64 0Z" fill="#f6c445" stroke="#fff6e3" stroke-width="7"/><ellipse cx="56" cy="100" rx="9" ry="10" fill="#fff6e3"/><ellipse cx="84" cy="100" rx="9" ry="10" fill="#fff6e3"/><circle cx="58" cy="102" r="4" fill="#1a1930"/><circle cx="86" cy="102" r="4" fill="#1a1930"/><path d="M58 122q12 10 24 0" fill="none" stroke="#fff6e3" stroke-width="4" stroke-linecap="round"/></svg>
-  <h1>TankFul</h1>
-  <select id="dataset" aria-label="Dataset">
-    <option value="history/mock_test_2026-10-10T1530">mock_test 10-10 15:30</option>
-    <option value="history/full_week">full_week</option>
-    <option value="history/snapshot_2026-10-08T1200">snapshot 10-08 12:00</option>
-    <option value="history/snapshot_2026-10-09T0330">snapshot 10-09 03:30</option>
-    <option value="history/snapshot_2026-10-10T0900">snapshot 10-10 09:00</option>
-    <option value="test">test (judging)</option>
-  </select>
-  <label class="btn mini">Open folder…<input id="folder" type="file" webkitdirectory multiple hidden></label>
-  <button id="play" class="primary">Replay</button>
-  <select id="speed" aria-label="Replay speed">
-    <option value="12">1 h / sec</option>
-    <option value="36" selected>3 h / sec</option>
-    <option value="144">12 h / sec</option>
-    <option value="288">1 day / sec</option>
-  </select>
-  <input id="slider" type="range" min="0" max="0" value="0" aria-label="Time travel">
-  <span id="clock">no data</span>
-  <span id="hold" class="hold">Holding for your decision</span>
-</header>
+<aside class="rail">
+  <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f302d"/><rect x="16" y="14" width="32" height="36" rx="5" fill="none" stroke="#e7efe9" stroke-width="4"/><rect x="21" y="32" width="22" height="13" rx="2" fill="#9fbfb4"/><line x1="14" y1="24" x2="50" y2="24" stroke="#e3611c" stroke-width="3" stroke-dasharray="4 3"/></svg>TankFul</div>
+  <nav class="nav" id="nav">
+    <button data-view="now" class="on">Now <span class="cnt" id="n-now"></span></button>
+    <button data-view="alerts">Alerts <span class="cnt" id="n-alerts"></span></button>
+    <button data-view="network">Network</button>
+    <button data-view="history">History</button>
+    <button data-view="savings">Savings</button>
+    <button data-view="stress">Planner test</button>
+    <button onclick="location.href='story.html'">How it works</button>
+  </nav>
+  <div class="replay">
+    <div class="lab"><span>Replay</span><span id="day-range"></span></div>
+    <div class="row"><button id="play" class="primary">Play</button>
+      <select id="speed" aria-label="Replay speed"><option value="12">1 h / sec</option><option value="36" selected>3 h / sec</option><option value="144">12 h / sec</option><option value="288">1 day / sec</option></select></div>
+    <input id="slider" type="range" min="0" max="0" value="0" aria-label="Time travel">
+    <select id="dataset" aria-label="Dataset">
+      <option value="history/full_week">full_week</option>
+      <option value="history/mock_test_2026-10-10T1530">mock_test 10-10 15:30</option>
+      <option value="history/snapshot_2026-10-08T1200">snapshot 10-08 12:00</option>
+      <option value="history/snapshot_2026-10-09T0330">snapshot 10-09 03:30</option>
+      <option value="history/snapshot_2026-10-10T0900">snapshot 10-10 09:00</option>
+      <option value="test">test (judging)</option>
+    </select>
+    <label class="btn">Open folder…<input id="folder" type="file" webkitdirectory multiple hidden></label>
+    <label class="hold"><input type="checkbox" id="f-pause" checked> Pause when someone must decide</label>
+  </div>
+  <div class="clockbox">
+    <div class="lab">Replay time · UTC</div>
+    <div class="t num" id="clock">–</div>
+    <div class="d" id="clock-d"></div>
+    <div class="held" id="hold"><i></i>Paused until you decide</div>
+  </div>
+</aside>
 
-<main id="app" hidden>
-  <!-- the one decision that matters now -->
-  <section class="card ticket" id="ticket" aria-live="polite"></section>
+<div class="work">
+  <div class="topbar">
+    <h1 id="view-title">Now</h1>
+    <span class="saved">Saved this week <b class="num" id="k-saved">$0</b></span>
+    <button id="export" class="mini">Export events.json</button>
+    <button id="f-audit" class="mini">Export audit.json</button>
+  </div>
 
-  <aside class="side">
-    <div class="bubble" id="sal-say">Loading the week…</div>
-    <div class="sal-row">
-      <svg id="sal" class="calm" viewBox="0 0 170 170" role="img" aria-label="Sal, the control-room helper">
-        <path d="M70 22C70 22 24 78 24 110a46 46 0 0 0 92 0C116 78 70 22 70 22Z" fill="#4a9fe0" stroke="#1a1930" stroke-width="3.5" stroke-linejoin="round"/>
-        <path d="M44 104c0-14 8-26 16-34" fill="none" stroke="#fff6e3" stroke-width="4" stroke-linecap="round" opacity=".8"/>
-        <path d="M38 50a32 26 0 0 1 64 0Z" fill="#f6c445" stroke="#1a1930" stroke-width="3.5" stroke-linejoin="round"/>
-        <rect x="30" y="48" width="80" height="9" rx="4.5" fill="#f6c445" stroke="#1a1930" stroke-width="3.5"/>
-        <g class="calm point worry"><ellipse cx="56" cy="100" rx="9" ry="10" fill="#fff6e3" stroke="#1a1930" stroke-width="3"/><ellipse cx="84" cy="100" rx="9" ry="10" fill="#fff6e3" stroke="#1a1930" stroke-width="3"/><circle cx="59" cy="101" r="4" fill="#1a1930"/><circle cx="87" cy="101" r="4" fill="#1a1930"/></g>
-        <g class="glad"><path d="M47 100q9-10 18 0M75 100q9-10 18 0" fill="none" stroke="#1a1930" stroke-width="3.5" stroke-linecap="round"/><circle cx="44" cy="118" r="5" fill="#e4533a" opacity=".45"/><circle cx="96" cy="118" r="5" fill="#e4533a" opacity=".45"/></g>
-        <path class="point" d="M46 86l16-4M78 82l16 4" fill="none" stroke="#1a1930" stroke-width="3" stroke-linecap="round"/>
-        <path class="worry" d="M46 84l16 4M78 88l16-4" fill="none" stroke="#1a1930" stroke-width="3" stroke-linecap="round"/>
-        <path class="calm" d="M58 122q12 10 24 0" fill="none" stroke="#1a1930" stroke-width="3.5" stroke-linecap="round"/>
-        <path class="point" d="M60 120q10 10 20 0" fill="none" stroke="#1a1930" stroke-width="3.5" stroke-linecap="round"/>
-        <path class="worry" d="M58 126q12-8 24 0" fill="none" stroke="#1a1930" stroke-width="3.5" stroke-linecap="round"/>
-        <path class="glad" d="M54 118q16 16 32 0" fill="none" stroke="#1a1930" stroke-width="3.5" stroke-linecap="round"/>
-        <path d="M28 120q-16 6-12 24" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><circle cx="17" cy="146" r="7" fill="#4a9fe0" stroke="#1a1930" stroke-width="3"/>
-        <g class="calm"><path d="M112 120q16 6 12 24" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><circle cx="123" cy="146" r="7" fill="#4a9fe0" stroke="#1a1930" stroke-width="3"/></g>
-        <g class="point"><path d="M112 108q22-12 36-30" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><circle cx="150" cy="76" r="8" fill="#4a9fe0" stroke="#1a1930" stroke-width="3"/><path d="M154 70l10-10" stroke="#1a1930" stroke-width="5" stroke-linecap="round"/></g>
-        <g class="worry"><path d="M112 116q16 0 22 10" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><circle cx="134" cy="134" r="16" fill="#fff6e3" stroke="#1a1930" stroke-width="3.5"/><path d="M134 124v10l6 4" fill="none" stroke="#1a1930" stroke-width="3" stroke-linecap="round"/><rect x="130" y="112" width="8" height="6" rx="2" fill="#1a1930"/></g>
-        <g class="glad"><path d="M112 112q14-4 18-18" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><rect x="122" y="78" width="12" height="20" rx="6" fill="#4a9fe0" stroke="#1a1930" stroke-width="3"/></g>
-        <ellipse cx="54" cy="160" rx="13" ry="6" fill="#1a1930"/><ellipse cx="88" cy="160" rx="13" ry="6" fill="#1a1930"/>
-      </svg>
-      <div class="who"><b>Sal</b><br>watches the clock so you don't have to. Says one thing at a time.</div>
-    </div>
-    <section class="card" id="crew">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h3>Crew · who is on it</h3><span class="muted" style="font-size:12px">simulated people act here</span></div>
-      <div class="ink2" id="f-phone" style="font-size:12px;margin-bottom:6px"></div>
-      <div id="f-people"></div>
+  <main id="app" hidden>
+    <!-- NOW: one problem, one action -->
+    <section class="view nowgrid" data-view="now">
+      <section class="ticket" id="ticket" aria-live="polite"></section>
+      <aside class="side">
+        <section class="panel"><h2>People <span id="f-phone-s">via phone</span></h2><div class="people" id="f-people"></div></section>
+        <section class="panel"><h2>Also open <span id="also-n"></span></h2><div id="also"></div></section>
+        <section class="panel"><h2>Network at a glance <span id="glance-n"></span></h2><div class="glance" id="glance"></div><div class="glance-note">Click a facility for its tank and pump charts.</div></section>
+      </aside>
     </section>
-  </aside>
 
-  <section class="kpis">
-    <div class="kpi"><div class="l">Saved vs. doing nothing</div><div class="v good-text" id="k-saved">$0</div><div class="s" id="k-saved-s"></div></div>
-    <div class="kpi"><div class="l">Model speed</div><div class="v" id="k-speed">–</div><div class="s" id="k-speed-s"></div></div>
-    <div class="kpi"><div class="l">Compute cost</div><div class="v" id="k-cost">$0.00</div><div class="s" id="k-cost-s"></div></div>
-    <div class="kpi"><div class="l">Open problems</div><div class="v" id="k-open">0</div><div class="s" id="k-open-s"></div></div>
-    <div class="kpi"><div class="l">More savings possible</div><div class="v" id="k-more" style="color:var(--warning)">–</div><div class="s" id="k-more-s"></div></div>
-    <div class="kpi"><div class="l">At risk right now if nobody acts</div><div class="v" id="k-risk">$0</div><div class="s" id="k-risk-s"></div></div>
-  </section>
+    <!-- ALERTS: every open problem with its options -->
+    <section class="view" data-view="alerts" hidden>
+      <div class="note" id="f-phone"></div>
+      <div class="two">
+        <section class="panel"><h2>Open problems <span>what the model sees now</span></h2><div class="alerts" id="alerts"></div></section>
+        <div class="side">
+          <section class="panel"><h2>Alert states <span>from the alert server</span></h2><div class="rows" id="f-alerts"></div></section>
+          <section class="panel"><h2>Trucks, shut-ins, inspections</h2><div class="rows" id="f-work"></div></section>
+        </div>
+      </div>
+    </section>
 
-  <section class="card">
-    <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>The network</h2><span class="muted" style="font-size:12px">click a tank to see its charts</span></div>
-    <svg id="map" role="img" aria-label="Network map"></svg>
-    <div class="legend"><span>Each tank shows how full it is; the red dashed line is the shutdown level.</span><span><span class="dotl" style="background:var(--good)"></span> normal</span><span><span class="dotl" style="background:var(--warning)"></span> early warning</span><span><span class="dotl" style="background:var(--serious)"></span> needs inspection</span><span><span class="dotl" style="background:var(--critical)"></span> pump failure</span><span style="color:var(--s1)">- - truck on its way</span></div>
-  </section>
+    <!-- NETWORK: the map and the selected facility's charts -->
+    <section class="view" data-view="network" hidden>
+      <section class="panel"><h2>The network <span>click a tank to see its charts</span></h2>
+        <svg id="map" role="img" aria-label="Network map"></svg>
+        <div class="legend"><span><span class="dotl" style="background:var(--water)"></span> tank level</span><span><span class="dotl" style="background:var(--mint)"></span> normal</span><span><span class="dotl" style="background:var(--amber)"></span> early warning</span><span><span class="dotl" style="background:var(--orange)"></span> inspect</span><span><span class="dotl" style="background:var(--red)"></span> pump failure</span><span>dashed red line: shutdown level</span></div>
+      </section>
+      <section class="panel charts"><h2 id="chart-title">Tank level (%)</h2>
+        <div class="body">
+          <canvas id="c-level"></canvas>
+          <div class="legend"><span style="color:var(--water)">— tank level</span><span style="color:var(--water)">- - forecast</span><span style="color:var(--amber)">warning</span><span style="color:var(--red)">shutdown</span></div>
+          <h3 style="margin-top:20px;font-size:14px">Pump health and water delivered <span class="muted" style="font-weight:400;font-size:13px">· % while pumping</span></h3>
+          <canvas id="c-health" style="margin-top:8px"></canvas>
+          <div class="legend"><span style="color:var(--water)">— pump health (flow ÷ rated)</span><span style="color:var(--orange)">— delivered (received ÷ pumped)</span></div>
+        </div>
+      </section>
+    </section>
 
-  <section class="card">
-    <h2>Alerts · if you act now</h2>
-    <div class="alerts" id="alerts"></div>
-  </section>
-
-  <section class="card field" id="field" hidden>
-    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">
-      <h2 style="margin:0">Trucks, shut-ins, inspections</h2>
-      <span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <label class="ink2" style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="f-pause" checked> hold the replay while someone must decide</label>
-        <button id="f-audit" class="mini">Export audit.json</button>
-      </span>
-    </div>
-    <div class="fgrid">
-      <div><h3>Open alerts</h3><div id="f-alerts"></div></div>
-      <div><h3>Work</h3><div id="f-work"></div></div>
-    </div>
-    <h3 style="margin-top:20px">The story so far <span class="muted" style="font-weight:600;font-size:12px" id="f-audit-n"></span></h3>
-    <div class="strip" id="f-strip"></div>
-    <details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:13px">Full audit trail</summary><div class="audit" id="f-log"></div></details>
-    <div id="f-handoff" class="ink2" style="margin-top:8px;font-size:13px"></div>
-  </section>
-
-  <section class="card charts">
-    <h2 id="chart-title">Tank level (%)</h2>
-    <canvas id="c-level"></canvas>
-    <div class="legend"><span style="color:var(--s1)">— tank level</span><span style="color:var(--s1)">- - predicted</span><span style="color:#b8891a">warning</span><span style="color:var(--critical)">shutdown</span></div>
-    <h2 style="margin-top:16px">Pump health and water delivered <span class="muted" style="font-weight:400;font-size:13px">· % while pumping</span></h2>
-    <canvas id="c-health"></canvas>
-    <div class="legend"><span style="color:var(--s1)">— pump health (flow ÷ rated)</span><span style="color:#b8580e">— delivered (received ÷ pumped)</span></div>
-  </section>
-
-  <section class="card">
-    <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>Glass box log</h2><button id="export" class="mini">Export events.json</button></div>
-    <div class="log" id="log"></div>
-    <div class="how" style="margin-top:16px">
-      <h3>How the model decides</h3>
-      <ol>
+    <!-- HISTORY: the week so far, every event, every push -->
+    <section class="view" data-view="history" hidden>
+      <div class="stats">
+        <div class="kpi"><div class="l">Saved vs. doing nothing</div><div class="v good-text" id="k-saved2">$0</div><div class="s" id="k-saved-s"></div></div>
+        <div class="kpi"><div class="l">At risk right now if nobody acts</div><div class="v" id="k-risk">$0</div><div class="s" id="k-risk-s"></div></div>
+        <div class="kpi"><div class="l">Open problems</div><div class="v" id="k-open">0</div><div class="s" id="k-open-s"></div></div>
+        <div class="kpi"><div class="l">More savings possible</div><div class="v" id="k-more">–</div><div class="s" id="k-more-s"></div></div>
+        <div class="kpi"><div class="l">Model speed</div><div class="v" id="k-speed">–</div><div class="s" id="k-speed-s"></div></div>
+        <div class="kpi"><div class="l">Compute cost</div><div class="v" id="k-cost">$0.00</div><div class="s" id="k-cost-s"></div></div>
+      </div>
+      <div class="two">
+        <section class="panel"><h2>Event log <span>every problem the model found</span></h2><div class="log" id="log"></div></section>
+        <section class="panel"><h2>Audit trail <span id="f-audit-n"></span></h2><div class="audit" id="f-log"></div><div id="f-handoff" class="note" style="padding:12px 18px;border-top:1px solid var(--paper-2)"></div></section>
+      </div>
+      <section class="panel how"><h2>How the model decides</h2><div class="body"><ol>
         <li><b>Pump failure:</b> the pump reports fault code 2. The countdown is exact physics: (shutdown − level) ÷ fill rate, with a p10–p90 band from the fitted level slope.</li>
         <li><b>Leak:</b> CUSUM on pipeline pressure below its healthy value (disposal + 50 psi). Confirmed by pumped minus received flow.</li>
         <li><b>Worn pump:</b> CUSUM on flow below rated, plus discharge pressure sag. A trend line predicts when the pump reaches 80% of rated flow.</li>
         <li><b>Cheapest plan:</b> checks every mix of trucks × trips × wells to shut in × latest shut-in minute. The fleet is shared across a system's failures.</li>
         <li><b>Approve by:</b> the optimizer is re-run at later start times; the deadline is the last one where the cheapest plan still works.</li>
-      </ol>
-    </div>
-  </section>
+      </ol></div></section>
+    </section>
 
-  <section class="card wide">
-    <h2>Saving even more <span class="muted" style="font-weight:400;font-size:14px">· whole dataset</span></h2>
-    <div class="save3">
-      <div><h3>Daily plans: already optimal</h3><div id="sv-plan"></div></div>
-      <div><h3>Fix worn pumps before they fail</h3><div id="sv-maint"></div></div>
-      <div><h3>Put trucks where they're needed</h3><table class="fleet" id="sv-fleet"></table><div id="sv-fleet-s" class="ink2" style="margin-top:8px;font-size:13px"></div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button id="sv-best" class="mini">Best move of trucks</button><button id="sv-reset" class="mini">Reset</button></div></div>
-    </div>
-    <p class="muted" style="margin:12px 0 0;font-size:12px" id="sv-assume">Assumptions: a repair during the wear warning prevents the failure (the data can't prove this). Fleet numbers re-run the whole recording with each truck count; check over more weeks before moving trucks for real. Truck ownership costs aren't in the data.</p>
-  </section>
+    <!-- SAVINGS: whole dataset -->
+    <section class="view" data-view="savings" hidden>
+      <div class="save3">
+        <section class="panel"><h2>Daily plans: already optimal</h2><div class="body" id="sv-plan"></div></section>
+        <section class="panel"><h2>Fix worn pumps before they fail</h2><div class="body" id="sv-maint"></div></section>
+        <section class="panel"><h2>Put trucks where they're needed</h2><div class="body"><table class="fleet" id="sv-fleet"></table><div id="sv-fleet-s" class="note" style="margin-top:10px"></div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button id="sv-best" class="mini primary">Best move of trucks</button><button id="sv-reset" class="mini">Reset</button></div></div></section>
+      </div>
+      <p class="note" id="sv-assume" style="margin:0">Assumptions: a repair during the wear warning prevents the failure (the data can't prove this). Fleet numbers re-run the whole recording with each truck count; check over more weeks before moving a real truck.</p>
+    </section>
 
-  <section class="card wide" id="stress">
-    <h2>Planner stress test <span class="muted" style="font-weight:400;font-size:14px">· our plan vs. brute force</span></h2>
-    <div class="st-top">
-      <select id="st-n" aria-label="Number of random emergencies"><option value="300">300 emergencies</option><option value="1000" selected>1,000 emergencies</option><option value="3000">3,000 emergencies</option></select>
-      <label class="ink2" style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="st-sab"> Sabotage the planner (start shut-ins 15 min early)</label>
-      <select id="st-speed" aria-label="Speed"><option value="watch" selected>Watch (4 cases/sec)</option><option value="fast">Fast (all at once)</option></select>
-      <button id="st-run" class="primary">Run stress test</button>
-      <span id="st-status" class="ink2"></span>
-    </div>
-    <div class="st-live">
-      <div class="st-now"><h3 id="st-now-h">Now testing</h3><canvas id="st-canvas"></canvas>
-        <div id="st-now-t" class="st-now-t">Press Run stress test.</div></div>
-      <div class="st-feed"><h3>Live feed</h3><table id="st-feed"><thead><tr><th>#</th><th>Tank</th><th>Level</th><th>Fills /h</th><th>Repair</th><th>Trucks</th><th>Our plan</th><th>Ours</th><th>Brute force</th><th></th></tr></thead><tbody></tbody></table></div>
-    </div>
-    <div class="st-grid" id="st-grid" aria-label="One square per random case"></div>
-    <div class="st-stats" id="st-stats"></div>
-    <div id="st-detail" class="st-detail"></div>
-  </section>
-</main>
-<div id="drop" class="card">Pick a dataset above (serve the <code>hack-utd</code> folder: <code>python3 -m http.server</code>), or use <b>Open folder…</b> and choose any folder with network.json, ops.json and telemetry.csv.</div>
+    <!-- PLANNER TEST: our plan vs brute force -->
+    <section class="view" data-view="stress" hidden>
+      <section class="panel"><h2>Planner stress test <span>our plan vs. brute force</span></h2>
+        <div class="body">
+          <div class="st-top">
+            <select id="st-n" aria-label="Number of random emergencies"><option value="300">300 emergencies</option><option value="1000" selected>1,000 emergencies</option><option value="3000">3,000 emergencies</option></select>
+            <label class="note" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="st-sab"> Sabotage the planner (start shut-ins 15 min early)</label>
+            <select id="st-speed" aria-label="Speed"><option value="watch" selected>Watch (4 cases/sec)</option><option value="fast">Fast (all at once)</option></select>
+            <button id="st-run" class="primary">Run stress test</button>
+            <span id="st-status" class="note"></span>
+          </div>
+          <div class="st-live">
+            <div class="st-now"><h3 id="st-now-h" style="font-size:14px;margin-bottom:8px">Now testing</h3><canvas id="st-canvas"></canvas><div id="st-now-t" class="st-now-t">Press Run stress test.</div></div>
+            <div class="st-feed"><h3 style="font-size:14px;margin-bottom:8px">Live feed</h3><table id="st-feed"><thead><tr><th>#</th><th>Tank</th><th>Level</th><th>Fills /h</th><th>Repair</th><th>Trucks</th><th>Our plan</th><th>Ours</th><th>Brute force</th><th></th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="st-grid" id="st-grid" aria-label="One square per random case"></div>
+          <div class="st-stats" id="st-stats"></div>
+          <div id="st-detail" class="st-detail"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <div id="drop">Pick a dataset in the rail (serve the <code>hack-utd</code> folder: <code>python3 -m http.server</code>), or use <b>Open folder…</b> and choose any folder with network.json, ops.json and telemetry.csv.</div>
+</div>
 <div class="tip" id="tip"></div>
-<style>.dotl{display:inline-block;width:11px;height:11px;border-radius:50%;border:2px solid var(--ink);vertical-align:-1px;margin-right:3px}</style>
 
 <script src="model.js"></script>
 <script src="stress.js"></script>
@@ -350,9 +396,27 @@
 const $ = id => document.getElementById(id);
 const fmt$ = v => '$' + Math.round(v).toLocaleString();
 const fmtT = t => new Date(t * 1000).toISOString().slice(5, 16).replace('T', ' ');
+const hmU = t => new Date(t * 1000).toISOString().slice(11, 16);
+const hm = ts => ts ? ts.slice(11, 16) : '–';
+const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const CAT = { pump_failure: 'Pump failure', pipeline_leak: 'Pipeline leak', pump_degradation: 'Pump wearing out' };
+const minTxt = m => m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}` : `${Math.round(m)} min`;
+const CAT = { pump_failure: 'Pump failure', pipeline_leak: 'Pipeline leak', pump_degradation: 'Worn pump' };
+const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 let ds, rep, i = 0, playing = false, sel = null, engineUs = [], loadMs = {};
+
+// ---------- views ----------
+const TITLES = { now: 'Now', alerts: 'Alerts', network: 'Network', history: 'History', savings: 'Savings · whole dataset', stress: 'Planner stress test' };
+let view = location.hash.replace('#', '') in TITLES ? location.hash.replace('#', '') : 'now';
+function showView(v) {
+  view = v; location.hash = v;
+  document.querySelectorAll('.view').forEach(s => s.hidden = s.dataset.view !== v);
+  document.querySelectorAll('#nav [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  $('view-title').textContent = TITLES[v];
+  if (ds) render();
+}
+document.querySelectorAll('#nav [data-view]').forEach(b => b.onclick = () => showView(b.dataset.view));
+showView(view);
 
 // ---------- loading ----------
 async function loadFromUrl(folder) {
@@ -380,6 +444,8 @@ function start(netTxt, opsTxt, telTxt, name) {
   loadMs.rows = ds.tel.rows;
   setupSavings(full);
   $('slider').max = ds.tel.n - 1;
+  const d0 = new Date(ds.tel.t0 * 1000), d1 = new Date((ds.tel.t0 + (ds.tel.n - 1) * Model.STEP) * 1000);
+  $('day-range').textContent = `${DAY[d0.getUTCDay()]} ${d0.getUTCDate()} – ${DAY[d1.getUTCDay()]} ${d1.getUTCDate()}`;
   $('app').hidden = false; $('drop').hidden = true;
   sel = sel && ds.facs.some(f => f.id === sel) ? sel : ds.facs[0].id;
   document.title = 'TankFul · ' + name;
@@ -397,112 +463,180 @@ function seek(t) {
 // ---------- server mode: the alert server owns the replay clock ----------
 // The page still runs the model locally for the map and charts (same code, same answers); it follows the
 // server's tick and shows the server's alert state. Without the server (file:// or python http.server) it
-// works as before, minus the field panel.
+// works as before, minus the people and audit panels.
 let SRV = null, FS = null, syncing = false;
 async function serverSync() {
   try {
     const r = await fetch('/api/state', { cache: 'no-store' }); if (!r.ok) throw 0;
     FS = await r.json(); SRV = true;
-  } catch { SRV = false; $('field').hidden = true; return; }
-  $('field').hidden = false; $('hold').classList.toggle('on', FS.waiting && FS.playing);
+  } catch { SRV = false; renderNoServer(); return; }
+  $('hold').classList.toggle('on', FS.waiting && FS.playing);
   if (!ds || FS.dataset !== curFolder) { if (!syncing) { syncing = true; curFolder = FS.dataset; $('dataset').value = FS.dataset; await loadFromUrl(FS.dataset).catch(() => {}); syncing = false; } return; }
-  playing = FS.playing; $('play').textContent = playing ? 'Pause' : 'Replay'; $('speed').value = String(FS.speed);
+  playing = FS.playing; $('play').textContent = playing ? 'Pause' : 'Play'; $('speed').value = String(FS.speed);
   if (FS.i !== i) { if (FS.i > i && FS.i - i < 400) { while (i < FS.i) rep.step(++i); render(); } else seek(FS.i); }
   else renderField();
 }
 let curFolder = null;
-const srvPost = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(() => serverSync());
+const srvPost = (url, body) => fetch(url, { method: 'content' === 'x' ? 'GET' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(() => serverSync());
 setInterval(() => { if (SRV !== false) serverSync(); }, 500);
+function renderNoServer() {
+  $('f-people').innerHTML = '<div class="empty">Run <code>node app/serve.mjs</code> to send alerts to the phone and act for the simulated crew.</div>';
+  $('f-alerts').innerHTML = $('f-work').innerHTML = '<div class="empty">Needs the alert server.</div>';
+  $('f-log').innerHTML = '<div class="empty">Needs the alert server.</div>';
+}
 
 const STATE = { awaiting_approval: ['waiting for approval', 'wait'], awaiting_claim: ['nobody on it yet', 'wait'], claimed: ['claimed', 'ok'], approved: ['approved', 'ok'], in_progress: ['plan in progress', 'ok'], awaiting_confirmation: ['pump off · leak end unconfirmed', 'low'], resolved: ['resolved', 'ok'], no_action_needed: ['no action needed', 'ok'], inspection_queued: ['inspection queued', 'low'], watching: ['watching', 'low'], inspected: ['inspected', 'ok'] };
-const hm = ts => ts ? ts.slice(11, 16) : '–';
 // The real phone acts through its push links. For a demo without the phone, the same links open here.
-function phoneLinks(personId) {
-  const seen = new Set(), out = [];
-  for (const m of FS.pushes.slice().reverse()) { if (m.to !== personId || !m.url || seen.has(m.url) || m.kind === 'handoff' || (m.tags || []).some(t => ['resolved', 'covered'].includes(t))) continue; seen.add(m.url); if (out.length < 3) out.push(`<a class="mini" style="text-decoration:none;display:inline-flex;align-items:center;min-height:32px;border:2.5px solid var(--ink);border-radius:999px;padding:3px 12px;box-shadow:0 3px 0 var(--ink);font-family:var(--display);font-size:13px" href="${m.url}" target="_blank" title="${m.title}">On the phone: ${m.title.replace(/^\S+\s/, '').slice(0, 28)}</a>`); }
+// Only links for things still open: unresolved alerts, open truck jobs, due shut-ins, queued inspections.
+function openRefs() {
+  const s = new Set();
+  for (const a of FS.alerts) if (a.state !== 'resolved') s.add(a.id);
+  for (const j of FS.jobs) if (j.state === 'open') s.add(j.id);
+  for (const t of FS.tasks) if (t.state !== 'done') s.add(t.id);
+  for (const q of FS.queue) if (q.state === 'queued' || q.state === 'assigned') s.add(q.id);
+  return s;
+}
+function phoneLinks(personId, onlyRef) {
+  const seen = new Set(), out = [], open = openRefs();
+  for (const m of FS.pushes.slice().reverse()) { if (m.to !== personId || !m.url || seen.has(m.url) || m.kind === 'handoff' || (m.tags || []).some(t => ['resolved', 'covered'].includes(t)) || (m.refId && !open.has(m.refId)) || (onlyRef && m.refId !== onlyRef)) continue; seen.add(m.url); if (out.length < 3) out.push(`<a class="btn mini" href="${m.url}" target="_blank" title="${esc(m.title)}">Open on the phone: ${esc(m.title.replace(/^\S+\s/, '').slice(0, 26))}</a>`); }
   return out.join('');
 }
-let fieldKey = '';
+let fieldKey = '', peopleAll = false;
 function renderField() {
   if (!FS) return;
   // Re-render only when something changed, so buttons are not rebuilt under the user's finger every 500 ms.
   const { i: _i, now: _n, now_ts: _t, totals: _T, ...rest } = FS; const key = JSON.stringify(rest);
   if (key === fieldKey) return; fieldKey = key;
   const ph = FS.real_phones.map(p => `<b>${p.id}</b> → ntfy topic <code>${p.topic}</code> (subscribe: ${p.subscribe})`).join(' · ');
-  $('f-phone').innerHTML = `${FS.dry_run ? '<span class="pill low">DRY RUN · pushes logged, not sent</span> ' : ''}${ph}. Claim links open at ${FS.public_url}.`;
+  $('f-phone').innerHTML = `${FS.dry_run ? '<span class="chip low">DRY RUN · pushes logged, not sent</span> ' : ''}${ph}. Claim links open at ${FS.public_url}.`;
+  $('f-phone-s').textContent = FS.dry_run ? 'dry run' : 'via phone';
   $('f-pause').checked = !!FS.waiting || $('f-pause').checked;
   const open = FS.alerts.filter(a => a.state !== 'resolved');
   $('f-alerts').innerHTML = open.map(a => {
     const [txt, cls] = STATE[a.state] || [a.state, ''];
     const plan = a.approved_plan || a.plan;
     const by = a.category === 'pump_failure' && a.approve_by_ts ? ` · approve by <b>${hm(a.approve_by_ts)}</b>${a.minutes_to_approve != null ? ` (${a.minutes_to_approve} min)` : ''}` : '';
-    const miss = a.category === 'pump_failure' && a.fallback && a.state === 'awaiting_approval' ? `<small>miss it: ${a.fallback.label} · +${fmt$(a.fallback.cost - plan.cost)}</small>` : '';
-    const ladder = a.category === 'pump_failure' && a.state === 'awaiting_approval' && a.ladder && a.ladder.length > 1 ? `<small>money burning: ${a.ladder.filter((l, k) => k === 0 || l.atMin % 60 === 0 || k === a.ladder.length - 1).slice(0, 6).map(l => (l.atMin ? `+${l.atMin >= 60 ? (l.atMin / 60).toFixed(l.atMin % 60 ? 1 : 0) + ' h' : l.atMin + ' min'}` : 'now') + ' ' + fmt$(l.cost)).join(' → ')}</small>` : '';
-    const red = '';
-    return `<div class="frow" data-f="${a.facility_id}"${red}><div class="who"><b>${a.facility_id}</b> ${CAT[a.category] || a.category}${by}<small>${plan ? plan.label + ' · ' + fmt$(plan.cost) : (a.evidence || []).slice(0, 2).join(' · ')}${a.claimed_by ? ' · ' + a.claimed_by : ''}${a.pinged && a.pinged.length && !a.claimed_by ? ' · pinged ' + a.pinged.join(', ') : ''}</small>${miss}${ladder}</div><div><span class="pill ${a.severity}">${a.severity}</span> <span class="pill ${a.red && !a.claimed_by ? 'critical' : cls}">${a.red && !a.claimed_by ? 'unclaimed · escalated' : txt}</span></div></div>`;
-  }).join('') || '<div class="muted">Nothing open.</div>';
+    const miss = a.category === 'pump_failure' && a.fallback && a.state === 'awaiting_approval' ? `<small>miss it: ${esc(a.fallback.label)} · +${fmt$(a.fallback.cost - plan.cost)}</small>` : '';
+    return `<div data-f="${a.facility_id}" style="cursor:pointer"><div><b>${a.facility_id}</b> ${CAT[a.category] || a.category}${by}<small>${plan ? esc(plan.label) + ' · ' + fmt$(plan.cost) : (a.evidence || []).slice(0, 2).join(' · ')}${a.claimed_by ? ' · ' + a.claimed_by : ''}${a.pinged && a.pinged.length && !a.claimed_by ? ' · pinged ' + a.pinged.join(', ') : ''}</small>${miss}</div><div class="act"><span class="chip ${a.severity}">${a.severity}</span> <span class="chip ${a.red && !a.claimed_by ? 'critical' : cls}">${a.red && !a.claimed_by ? 'unclaimed · escalated' : txt}</span></div></div>`;
+  }).join('') || '<div class="empty">Nothing open.</div>';
   $('f-alerts').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
-  $('f-people').innerHTML = FS.people.map(p => `<div class="frow ${p.reachable ? '' : 'off'}"><div class="who"><b>${p.name}</b> <small>${p.role.replace('_', ' ')}${p.system ? ' · ' + p.system : ''} · buzzed ${p.buzzed}×${p.busy ? ' · on a truck job' : ''}${p.virtual ? '' : ' · real phone'}</small></div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${p.virtual ? '' : phoneLinks(p.id)}${p.tokens.map(t => `<button class="mini primary" data-tok="${t.token}" data-act="${t.kind === 'task' ? 'done' : 'claim'}">${t.label}</button>${t.kind === 'alert' || t.kind === 'job' ? `<button class="mini" data-tok="${t.token}" data-act="decline">Can't</button>` : ''}`).join('')}
-    <button class="mini" data-person="${p.id}" data-on="${p.reachable ? 0 : 1}" title="simulate losing signal">${p.reachable ? 'Lose signal' : 'Signal back'}</button></div></div>`).join('');
+  const involved = p => p.tokens.length || p.busy || !p.reachable || !p.virtual || p.buzzed;
+  const shown = FS.people.filter(p => involved(p) || peopleAll), idle = FS.people.length - shown.length;
+  $('f-people').innerHTML = shown.map(p => {
+    const pinged = p.tokens.length > 0, cls = `${p.reachable ? '' : 'off'} ${pinged ? 'pinged' : p.busy ? 'busy' : ''}`;
+    const status = [p.role.replace('_', ' ') + (p.system ? ' · ' + p.system : ''), p.virtual ? 'simulated' : 'real phone', p.busy ? 'on a truck job' : '', p.buzzed ? `buzzed ${p.buzzed}×` : 'not buzzed yet', p.reachable ? '' : 'lost signal'].filter(Boolean).join(' · ');
+    const assigned = t => t.kind === 'queue' && FS.queue.some(q => q.id === t.ref && q.state === 'assigned'); // taken: the next tap marks it inspected
+    const live = t => t.kind !== 'queue' || FS.queue.some(q => q.id === t.ref && (q.state === 'queued' || q.state === 'assigned')); // a finished inspection has no next step
+    const acts = (p.virtual ? '' : phoneLinks(p.id)) + p.tokens.filter(live).map(t => `<button class="mini primary" data-tok="${t.token}" data-act="${t.kind === 'task' || assigned(t) ? 'done' : 'claim'}">${assigned(t) ? esc(t.label.replace(/^Inspect/, 'Mark inspected:')) : esc(t.label)}</button>${t.kind === 'alert' || t.kind === 'job' ? `<button class="mini" data-tok="${t.token}" data-act="decline">Can't</button>` : ''}`).join('') + `<button class="mini quiet" data-person="${p.id}" data-on="${p.reachable ? 0 : 1}" title="simulate losing signal">${p.reachable ? 'Lose signal' : 'Signal back'}</button>`;
+    return `<div class="${cls}"><i></i><div><b>${esc(p.name)}</b><small>${status}</small><div class="act">${acts}</div></div></div>`;
+  }).join('') + (idle ? `<div class="foot"><button class="mini quiet" id="people-all">${idle} more, nobody pinged · show all</button></div>` : peopleAll && FS.people.length > 3 ? `<div class="foot"><button class="mini quiet" id="people-all">Show only who is involved</button></div>` : '');
+  const pa = $('people-all'); if (pa) pa.onclick = () => { peopleAll = !peopleAll; fieldKey = ''; renderField(); };
   $('f-people').querySelectorAll('[data-tok]').forEach(b => b.onclick = () => srvPost('/api/claim', { token: b.dataset.tok, action: b.dataset.act }));
   $('f-people').querySelectorAll('[data-person]').forEach(b => b.onclick = () => srvPost('/api/person/' + b.dataset.person, { reachable: b.dataset.on === '1' }));
   const work = [];
-  for (const j of FS.jobs.filter(j => j.state !== 'done')) work.push(`<div class="frow"><div class="who">Truck · <b>${j.facility_id}</b> ${j.trucks} truck${j.trucks > 1 ? 's' : ''} × ${j.trips} trip${j.trips > 1 ? 's' : ''}<small>${j.claims.length ? 'claimed by ' + j.claims.join(', ') : 'pinged ' + j.pinged.join(', ')} · leave by ${new Date(j.claim_by_unix * 1000).toISOString().slice(11, 16)}</small></div><span class="pill ${j.state === 'open' ? 'wait' : j.state === 'covered' ? 'ok' : 'low'}">${j.state === 'open' ? `${j.claims.length}/${j.trucks} claimed` : j.state}</span></div>`);
-  for (const t of FS.tasks.filter(t => t.state !== 'done')) work.push(`<div class="frow"><div class="who">Shut-in · <b>${t.facility_id}</b> shut in ${t.wells.join(', ')}<small>due ${hm(t.due_ts)} · owner ${t.owner}</small></div><span class="pill ${t.state === 'due' ? 'critical' : 'low'}">${t.state}</span></div>`);
-  for (const q of FS.queue.filter(q => q.state === 'queued' || q.state === 'assigned')) work.push(`<div class="frow"><div class="who">Inspect · <b>${q.asset_id}</b> inspect by ${q.deadline_ts.slice(5, 16).replace('T', ' ')}<small>${q.reason}${q.owner ? ' · ' + q.owner : ''}</small></div><span class="pill low">${q.state}</span></div>`);
-  $('f-work').innerHTML = work.join('') || '<div class="muted">No trucks out, no shut-ins due, no inspections queued.</div>';
-  $('f-audit-n').textContent = `· ${FS.audit_total} entries`;
-  $('f-strip').innerHTML = FS.audit.slice(-8).map(e => `<div class="panel ${e.action === 'push' ? 'push' : !['system', 'model'].includes(e.actor) ? 'human' : ''}"><b>${e.ts_replay.slice(11, 16)} · ${e.actor}</b>${e.action}${e.ref ? ' ' + e.ref : ''}<div class="muted" style="margin-top:4px">${(e.detail || '').replace(/[🟠🔴🟡🚚⏱🔁🔄]\s?/g, '')}</div></div>`).join('') || '<div class="muted">Nothing has happened yet.</div>';
-  const stripEl = $('f-strip'); stripEl.scrollLeft = stripEl.scrollWidth;
-  $('f-log').innerHTML = FS.audit.slice(-60).reverse().map(e => `<div>${e.ts_replay.slice(5, 16).replace('T', ' ')} <b>${e.action}</b> ${e.actor} ${e.ref || ''} <span class="muted">${e.detail || ''}</span></div>`).join('');
-  $('f-handoff').innerHTML = FS.handoff ? `<b>Last shift handoff ${hm(FS.handoff.at)}:</b> ${FS.handoff.lines.join(' · ')}` : '';
-  if (ds && rep) renderTicket(Model.alertsAt(ds, rep.engine, i)); // the ticket follows claims and escalations, not only ticks
+  for (const j of FS.jobs.filter(j => j.state !== 'done')) work.push(`<div><div>Truck · <b>${j.facility_id}</b> ${j.trucks} truck${j.trucks > 1 ? 's' : ''} × ${j.trips} trip${j.trips > 1 ? 's' : ''}<small>${j.claims.length ? 'claimed by ' + j.claims.join(', ') : 'pinged ' + j.pinged.join(', ')} · leave by ${hmU(j.claim_by_unix)}</small></div><span class="chip ${j.state === 'open' ? 'wait' : j.state === 'covered' ? 'ok' : 'low'}">${j.state === 'open' ? `${j.claims.length}/${j.trucks} claimed` : j.state}</span></div>`);
+  for (const t of FS.tasks.filter(t => t.state !== 'done')) work.push(`<div><div>Shut-in · <b>${t.facility_id}</b> shut in ${t.wells.join(', ')}<small>due ${hm(t.due_ts)} · owner ${t.owner}</small></div><span class="chip ${t.state === 'due' ? 'critical' : 'low'}">${t.state}</span></div>`);
+  for (const q of FS.queue.filter(q => q.state === 'queued' || q.state === 'assigned')) work.push(`<div><div>Inspect · <b>${q.asset_id}</b> by ${q.deadline_ts.slice(5, 16).replace('T', ' ')}<small>${esc(q.reason)}${q.owner ? ' · ' + q.owner : ''}</small></div><span class="chip low">${q.state}</span></div>`);
+  $('f-work').innerHTML = work.join('') || '<div class="empty">No trucks out, no shut-ins due, no inspections queued.</div>';
+  $('f-audit-n').textContent = `${FS.audit_total} entries`;
+  $('f-log').innerHTML = FS.audit.slice(-60).reverse().map(e => `<div><span class="mono muted">${e.ts_replay.slice(5, 16).replace('T', ' ')}</span> <b>${esc(e.action)}</b> ${esc(e.actor)} ${esc(e.ref || '')} <span class="muted">${esc((e.detail || '').replace(/[🟠🔴🟡🚚⏱🔁🔄✅✔]\s?/g, ''))}</span></div>`).join('') || '<div class="empty">Nothing has happened yet.</div>';
+  $('f-handoff').innerHTML = FS.handoff ? `<b>Last shift handoff ${hm(FS.handoff.at)}:</b> ${esc(FS.handoff.lines.join(' · '))}` : '';
+  $('f-handoff').hidden = !FS.handoff;
+  if (ds && rep) { // the ticket and every open item follow claims and escalations, not only ticks
+    const A = Model.alertsAt(ds, rep.engine, i);
+    renderTicket(A);
+    if (view === 'now') renderAlso(A, rep.engine.scores());
+    if (view === 'alerts') renderAlerts(A, rep.engine.scores());
+  }
 }
 $('f-pause').onchange = e => srvPost('/api/replay', { pauseOnWait: e.target.checked });
 $('f-audit').onclick = () => { location.href = '/api/audit'; };
 
-
-// ---------- the decision ticket + Sal ----------
-const hmU = t => new Date(t * 1000).toISOString().slice(11, 16);
-const minTxt = m => m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}` : `${Math.round(m)} min`;
-function sal(face, text) { $('sal').setAttribute('class', face); $('sal-say').textContent = text; }
-function ticketButtons(a, kind) {
+// ---------- the decision ticket ----------
+const ticketOpen = { options: false, why: false };
+function ticketButtons(a, label) {
   if (!FS || !a) return '';
-  const out = [];
-  for (const p of FS.people) for (const t of p.tokens) if (t.ref === a.id && t.kind === kind) {
-    out.push(`<button class="primary" data-tok="${t.token}" data-act="claim">${a.category === 'pump_failure' ? 'Approve plan' : 'Take it'} <span class="muted" style="font-size:12px">as ${p.name}</span></button><button data-tok="${t.token}" data-act="decline">Can't</button><button data-tok="${t.token}" data-act="ack">Acknowledge</button>`);
-    break;
+  for (const p of FS.people) for (const t of p.tokens) if (t.ref === a.id && t.kind === 'alert')
+    return `<button class="primary" data-tok="${t.token}" data-act="claim">${label} <span style="opacity:.7;font-size:12px;font-weight:400">as ${esc(p.name)}</span></button><button data-tok="${t.token}" data-act="decline">Can't</button><button class="quiet" data-tok="${t.token}" data-act="ack">Acknowledge</button>`;
+  const links = phoneLinks('control_room', a.id);
+  return links ? `<span class="note" style="font-weight:500;color:var(--ink)">Waiting for the phone.</span>${links}` : '';
+}
+// The next step for one open item, as a button, so every open item can be acted on where it is shown:
+// a queued inspection (take it / mark inspected), an alert waiting on a simulated person, or the phone link.
+function quickActs(alertId, assetId, label) {
+  if (!FS) return '';
+  const b = (tok, act, txt, cls = 'primary') => `<button class="mini ${cls}" data-tok="${tok}" data-act="${act}">${txt}</button>`;
+  const q = assetId && FS.queue.find(q => q.asset_id === assetId && (q.state === 'queued' || q.state === 'assigned'));
+  for (const p of FS.people) for (const t of p.tokens) {
+    if (q && t.kind === 'queue' && t.ref === q.id) return q.state === 'queued' ? b(t.token, 'claim', `Take it · as ${esc(p.name)}`) : b(t.token, 'done', `Mark inspected · ${esc(p.name)}`);
+    if (alertId && t.kind === 'alert' && t.ref === alertId) return b(t.token, 'claim', `${label} · as ${esc(p.name)}`) + b(t.token, 'decline', "Can't", '');
   }
-  if (!out.length) out.push(phoneLinks('control_room'));
-  return out.join('');
+  return alertId ? phoneLinks('control_room', alertId) : '';
+}
+function wireActs(el) {
+  el.querySelectorAll('[data-tok]').forEach(x => x.onclick = ev => { ev.stopPropagation(); srvPost('/api/claim', { token: x.dataset.tok, action: x.dataset.act }); });
+  el.querySelectorAll('a.btn').forEach(x => x.addEventListener('click', ev => ev.stopPropagation()));
 }
 function wireTicket() {
-  $('ticket').querySelectorAll('[data-tok]').forEach(b => b.onclick = () => srvPost('/api/claim', { token: b.dataset.tok, action: b.dataset.act }));
-  $('ticket').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
+  const el = $('ticket');
+  el.querySelectorAll('[data-tok]').forEach(b => b.onclick = () => srvPost('/api/claim', { token: b.dataset.tok, action: b.dataset.act }));
+  el.querySelectorAll('[data-f]').forEach(x => x.onclick = () => { sel = x.dataset.f; showView('network'); });
+  el.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => { ticketOpen[b.dataset.toggle] = !ticketOpen[b.dataset.toggle]; renderTicket(Model.alertsAt(ds, rep.engine, i)); });
+}
+// Plan label in the operator's words: "Send 1 truck, 2 trips" / "Shut in W3 at 04:10"
+function planTitle(plan, now) {
+  if (!plan) return '';
+  const tr = (plan.actions || []).find(a => a.type === 'dispatch_truck'), sh = (plan.actions || []).find(a => a.type === 'shut_in_wells');
+  const parts = [];
+  if (tr) parts.push(`Send ${tr.trucks} truck${tr.trucks > 1 ? 's' : ''}, ${tr.trips_per_truck} trip${tr.trips_per_truck > 1 ? 's' : ''}${tr.trucks > 1 ? ' each' : ''}`);
+  if (sh) parts.push(`${tr ? 'shut in' : 'Shut in'} ${sh.wells.map(w => w.replace(/^.*_/, '')).join(', ')} at ${hmU(now + sh.start_after_min * 60)}`);
+  return parts.join(' and ') || plan.label;
+}
+// The signature move: a ruler from now to shutdown with approve-by and the truck's drive laid on it.
+function rulerSVG(o) {
+  const t0 = o.now, end = Math.max(o.shutdown ? o.p90 || o.shutdown : 0, o.approveBy || 0, o.truckMin ? t0 + o.truckMin * 60 : 0, t0 + 1800) + 600;
+  const W = 1000, L = 20, R = 980, X = t => L + (R - L) * (t - t0) / (end - t0);
+  let s = `<svg viewBox="0 0 ${W} 96" aria-label="Deadline ruler">`;
+  s += `<line x1="${L}" y1="58" x2="${R}" y2="58" stroke="${css('--line')}" stroke-width="1.5"/>`;
+  const h0 = Math.ceil(t0 / 3600) * 3600, step = (end - t0) > 5 * 3600 ? 7200 : 3600;
+  for (let t = h0; t <= end; t += step) s += `<line x1="${X(t)}" y1="54" x2="${X(t)}" y2="62" stroke="${css('--line')}"/><text x="${X(t)}" y="86" text-anchor="middle" font-family="Azeret Mono, monospace" font-size="13" fill="${css('--ink-3')}">${hmU(t)}</text>`;
+  if (o.shutdown && o.p10 && o.p90 && o.p90 > o.p10) s += `<rect x="${X(o.p10)}" y="50" width="${X(o.p90) - X(o.p10)}" height="16" fill="${css('--red')}" opacity=".12"/>`;
+  if (o.truckMin && !o.decided) { const x1 = X(t0 + o.truckMin * 60); s += `<rect x="${L}" y="30" width="${x1 - L}" height="16" rx="3" fill="${css('--rail')}"/><text x="${L + 10}" y="42" font-family="Geologica, sans-serif" font-size="13" fill="${css('--rail-ink')}">truck on the road · ${o.truckMin} min</text>`; }
+  const close = o.approveBy && o.shutdown && Math.abs(X(o.shutdown) - X(o.approveBy)) < 310;
+  if (o.approveBy) { const x = X(o.approveBy), left = close && X(o.shutdown) >= x; s += `<line x1="${x}" y1="8" x2="${x}" y2="70" stroke="${css('--orange')}" stroke-width="2.5"/><text x="${x + (left ? -8 : 8)}" y="18" text-anchor="${left ? 'end' : 'start'}" font-family="Geologica, sans-serif" font-size="17" font-weight="600" fill="${css('--orange')}">approve by ${hmU(o.approveBy)}</text>`; }
+  if (o.shutdown) { const x = X(o.shutdown), right = x > R - 160; s += `<line x1="${x}" y1="8" x2="${x}" y2="70" stroke="${css('--red')}" stroke-width="2.5"/><text x="${x + (right ? -8 : 8)}" y="18" text-anchor="${right ? 'end' : 'start'}" font-family="Geologica, sans-serif" font-size="17" font-weight="600" fill="${css('--red')}">shutdown ${hmU(o.shutdown)}</text>`; }
+  s += `<circle cx="${L}" cy="58" r="6" fill="${css('--ink')}"/><text x="${L + 14}" y="63" font-family="Geologica, sans-serif" font-size="13" fill="${css('--ink')}">now</text></svg>`;
+  return s;
+}
+function stepsHTML(steps, at) {
+  return `<div class="steps">${steps.map((s, k) => `<div class="step ${k < at ? 'done' : k === at ? 'now' : ''}"><div class="n"><i>${k + 1}</i>${s[0]}</div>${s[1]}</div>`).join('')}</div>`;
 }
 function renderTicket(A) {
   const el = $('ticket');
   const f = A.failures.slice().sort((a, b) => (a.hours_to_limit && a.hours_to_limit.p50 != null ? a.hours_to_limit.p50 : 9e9) - (b.hours_to_limit && b.hours_to_limit.p50 != null ? b.hours_to_limit.p50 : 9e9))[0];
   const now = ds.tel.t0 + i * Model.STEP;
+  const sevName = s => s === 'critical' ? 'CRITICAL' : s === 'high' ? 'HIGH' : 'LOW';
   if (!f) {
-    const e = A.others[0];
+    const e = otherByUrgency(A)[0];
     if (!e) {
-      el.innerHTML = `<div class="tk-empty"><div><div class="kicker">Right now</div><h2>Nothing is burning</h2><p class="ink2" style="margin:0;max-width:60ch">Every pump, tank and pipeline is reading normal. The replay keeps rolling; it holds the moment someone has to decide.</p></div></div>`;
-      sal('calm', i >= ds.tel.n - 1 ? 'End of the recording. Nothing open.' : 'All clear. I\'ll shout the moment something needs you.');
+      el.innerHTML = `<div class="head"><span class="chip ok">ALL CLEAR</span><h2 style="cursor:default">Nothing needs a decision</h2><div class="sub">Every pump, tank and pipeline is reading normal. ${i >= ds.tel.n - 1 ? 'This is the end of the recording.' : 'The replay keeps rolling and pauses the moment someone has to decide.'}</div></div>
+        ${stepsHTML([['A problem appears', 'The model reads every 5-minute reading.'], ['You decide', 'One alert, one plan, one deadline.'], ['The system routes', 'Trucks, shut-ins and inspections are owned and tracked.']], -1)}`;
       return;
     }
     const leak = e.category === 'pipeline_leak', a = FS && FS.alerts.find(x => x.id === e.event_id);
     const [txt, cls] = a ? (STATE[a.state] || [a.state, '']) : ['', ''];
-    el.innerHTML = `<span class="stamp ${leak ? '' : 'low'}" aria-hidden="true">${leak ? 'HIGH' : 'LOW'}</span>
-      <div class="kicker">${leak ? 'Pipeline leak' : 'Worn pump'} · since ${fmtT(e.onset_unix)} · ${e.event_id}</div>
-      <h2 data-f="${e.facility_id}" style="cursor:pointer">${e.facility_id.replace(/_/g, ' ')}</h2>
-      <p style="margin:0 0 14px;font-size:15px">${e.evidence.join('. ')}. <span class="muted">Confidence ${(e.confidence * 100).toFixed(0)}%.</span></p>
-      <div class="tk-big"><span><span class="count">${leak ? 'Send an inspector' : 'Inspect within 24 h'}</span></span>${a ? `<span><span class="pill ${a.severity}">${a.severity}</span> <span class="pill ${cls}">${txt}</span></span>` : ''}</div>
-      <p class="ink2" style="margin:10px 0 0">${leak ? 'A leak\'s end can only be confirmed when the pump runs again, so this stays open until the model sees it clear.' : 'In this data, worn pumps failed about 33 h after the warning. A repair now avoids an emergency truck later.'}</p>
-      <div class="tk-actions">${ticketButtons(a, 'alert')}</div>`;
+    const taken = a && ['claimed', 'approved', 'in_progress', 'inspected', 'awaiting_confirmation'].includes(a.state);
+    el.innerHTML = `<div class="head"><span class="chip ${a ? a.severity : leak ? 'high' : 'low'}">${a ? sevName(a.severity) : leak ? 'HIGH' : 'LOW'}${leak ? ' · PIPELINE LEAK' : ' · WORN PUMP'}</span>
+        <h2 data-f="${e.facility_id}">${leak ? `A pipeline is leaking at ${e.facility_id}` : `The pump at ${e.facility_id} is wearing out`}</h2>
+        <div class="sub">${leak ? `Water leaves the pump but not all of it reaches disposal. Since ${fmtT(e.onset_unix)}, confidence ${(e.confidence * 100).toFixed(0)}%.` : `It moves less water every hour. In this data, worn pumps failed about ${SV && SV.mv.length ? Math.round(SV.mv.reduce((s, m) => s + m.warnedHours, 0) / SV.mv.length) : 33} h after the warning.`}</div></div>
+      <div class="todo ${taken ? 'done' : leak ? '' : 'calm'}"><div class="k">${taken ? 'On it' : 'What to do now'}</div>
+        <div class="act"><h3>${leak ? 'Send an inspector to ' + e.asset_id : 'Inspect ' + e.asset_id + ' within 24 h'}</h3></div>
+        <div class="why">${leak ? 'A leak\'s end can only be confirmed when the pump runs again, so this stays open until the model sees it clear.' : 'A repair now avoids an emergency truck later. No rush, no re-pings.'}${a && a.claimed_by ? ` <b>${esc(a.claimed_by)}</b> has it.` : ''}</div>
+        <div class="row">${taken || !a ? '' : ticketButtons(a, leak ? 'Take it' : 'Queue the inspection')}<button class="quiet" data-toggle="why">${ticketOpen.why ? 'Hide the evidence' : 'Why the system thinks this'}</button></div>
+        ${a ? `<div class="status"><span class="chip ${cls}">${txt}</span>${a.pinged && a.pinged.length ? ' Buzzed ' + a.pinged.map(p => p.replace('_', ' ')).join(', ') + '.' : ''}</div>` : ''}</div>
+      ${ticketOpen.why ? `<div class="more"><h4>Evidence</h4><div class="ev">${e.evidence.map(esc).join('. ')}. Confidence ${(e.confidence * 100).toFixed(0)}%.</div></div>` : ''}
+      ${stepsHTML(leak ? [['Someone takes it', 'Control room or the inspection crew.'], ['Inspector goes out', 'Finds and fixes the leak.'], ['Pump runs, leak confirmed over', 'The model sees pressure back to normal.']] : [['Inspection queued', 'One notice to the inspection crew, 24 h deadline.'], ['Pump inspected', 'Repair during the warning window.'], ['Failure avoided', 'No emergency truck needed.']], taken ? 1 : 0)}`;
     wireTicket();
-    sal(a && ['claimed', 'approved', 'in_progress', 'inspected'].includes(a.state) ? 'glad' : 'point', leak ? `Pressure is ${e.evidence[0].replace(/^Pipeline pressure /, '')}. Someone should look at ${e.asset_id} today.` : `${e.asset_id} is wearing out. Get it inspected before it fails and we skip a truck.`);
     return;
   }
   const a = FS && FS.alerts.find(x => x.id === f.ev.event_id);
@@ -513,47 +647,36 @@ function renderTicket(A) {
   const minLeft = approveBy != null ? Math.max(0, (approveBy - now) / 60) : null;
   const decided = a && ['claimed', 'approved', 'in_progress'].includes(a.state);
   const sev = f.tripped ? 'critical' : a ? a.severity : 'high';
-  const span = shutdown ? Math.max(1, shutdown - onset) : 1, pct = t => Math.max(0, Math.min(100, 100 * (t - onset) / span));
-  const pNow = pct(now), pBy = approveBy != null ? pct(approveBy) : null;
-  const mx = Math.max(doNothing, plan.cost, fallback ? fallback.cost : 0, 1), w = v => Math.max(3, 100 * v / mx).toFixed(0) + '%';
   const [txt, cls] = a ? (STATE[a.state] || [a.state, '']) : ['', ''];
-  el.innerHTML = `<span class="stamp ${sev}" aria-hidden="true">${f.tripped ? 'SHUT IN' : sev.toUpperCase()}</span>
-    <div class="kicker">Pump failure · since ${fmtT(onset)} · ${f.ev.event_id}</div>
-    <h2 data-f="${f.fac.id}" style="cursor:pointer">${f.fac.id.replace(/_/g, ' ')}</h2>
-    <p style="margin:0 0 16px;font-size:15px">${f.ev.evidence.join('. ')}. <span class="muted">Confidence ${(f.ev.confidence * 100).toFixed(0)}%. Filling ${f.ratePct.toFixed(1)}%/h, repair takes ${(f.H / 60).toFixed(1)} h.</span></p>
-    <div class="tk-grid">
-      <svg width="110" height="130" viewBox="0 0 110 130" role="img" aria-label="Tank ${f.level.toFixed(0)} percent full">
-        <rect x="12" y="14" width="86" height="104" rx="14" fill="#fff6e3" stroke="#1a1930" stroke-width="3.5"/>
-        <clipPath id="tk"><rect x="14" y="16" width="82" height="100" rx="12"/></clipPath>
-        <g clip-path="url(#tk)"><rect x="12" y="${(16 + 100 * (1 - Math.min(100, f.level) / 100)).toFixed(1)}" width="86" height="110" fill="#4a9fe0"/></g>
-        <line x1="12" y1="${(16 + 100 * (1 - ds.lim.shutdown / 100)).toFixed(1)}" x2="98" y2="${(16 + 100 * (1 - ds.lim.shutdown / 100)).toFixed(1)}" stroke="#e4533a" stroke-width="3" stroke-dasharray="6 4"/>
-        <line x1="12" y1="${(16 + 100 * (1 - ds.lim.warning / 100)).toFixed(1)}" x2="98" y2="${(16 + 100 * (1 - ds.lim.warning / 100)).toFixed(1)}" stroke="#f08a2c" stroke-width="3" stroke-dasharray="6 4"/>
-        <rect x="30" y="4" width="50" height="14" rx="7" fill="#1a1930"/>
-        <text x="55" y="${f.level > 55 ? 100 : 60}" text-anchor="middle" font-family="Fredoka" font-weight="700" font-size="24" fill="#1a1930">${f.level.toFixed(0)}%</text>
-      </svg>
-      <div>
-        <div class="tk-big">
-          ${f.tripped ? '<span><span class="count">Shut in</span> <span class="muted">the tank hit the limit</span></span>' : minLeft != null && !decided ? `<span><span class="count">${minTxt(minLeft)}</span> <span class="muted">to approve</span></span>` : `<span><span class="count">${decided ? 'Approved' : 'Decide now'}</span></span>`}
-          ${shutdown && !f.tripped ? `<span><span class="count small">${minTxt((shutdown - now) / 60)}</span> <span class="muted">to shutdown${h ? ` · range ${Math.round(h.p10 * 60)}–${Math.round(h.p90 * 60)} min` : ''}</span></span>` : ''}
-        </div>
-        <div class="timeline" aria-hidden="true">
-          <i style="left:0;width:${pNow}%;background:var(--s1)"></i>
-          ${pBy != null ? `<i style="left:${pNow}%;width:${Math.max(0, pBy - pNow)}%;background:var(--good)"></i><i style="left:${pBy}%;right:0;background:var(--serious)"></i><b style="left:calc(${pBy}% - 2px)"></b>` : `<i style="left:${pNow}%;right:0;background:var(--surface-2)"></i>`}
-        </div>
-        <div class="tk-ticks num"><span>${hmU(onset)} <span class="muted">failed</span></span><span>${hmU(now)} <span class="muted">now</span></span>${approveBy != null ? `<span>${hmU(approveBy)} <span class="muted">approve by</span></span>` : ''}${shutdown ? `<span style="color:var(--critical)">${hmU(shutdown)} <span class="muted">shutdown</span></span>` : ''}</div>
-      </div>
-    </div>
-    <h3 style="margin:20px 0 4px">What it costs</h3>
-    <div class="money"><span><b>${decided ? 'Approved' : 'Approve now'}</b><small>${plan.label}</small></span><div class="bar"><i style="width:${w(plan.cost)};background:var(--good)"></i></div><span class="num">${fmt$(plan.cost)}</span></div>
-    ${fallback && !decided ? `<div class="money"><span><b>Miss ${hmU(approveBy)}</b><small>${fallback.label}</small></span><div class="bar"><i style="width:${w(fallback.cost)};background:var(--serious)"></i></div><span class="num">${fmt$(fallback.cost)}</span></div>` : ''}
-    <div class="money"><span><b>Do nothing</b><small>${shutdown ? 'facility shuts down ' + hmU(shutdown) : f.doNothing.label}</small></span><div class="bar"><i style="width:${w(doNothing)};background:var(--critical)"></i></div><span class="num">${fmt$(doNothing)}</span></div>
-    <div class="tk-actions">${decided || !a ? '' : ticketButtons(a, 'alert')}${a ? `<span class="pill ${a.red && !a.claimed_by ? 'critical' : cls}">${a.red && !a.claimed_by ? 'unclaimed · escalated' : txt}${a.claimed_by ? ' · ' + a.claimed_by : ''}</span>` : ''}<span class="note">${a && a.pinged && a.pinged.length ? 'Buzzed ' + a.pinged.map(p => p.replace('_', ' ')).join(', ') + '.' : 'Running without the alert server: plan math only.'}${a && a.next_ping_at && !a.acked && !decided ? ' Next ping ' + hmU(a.next_ping_at) + '.' : ''}</span></div>`;
+  const truckMin = ds.ops.systems[f.fac.sys].facilities[f.fac.id].response_min;
+  const tr = (plan.actions || []).find(x => x.type === 'dispatch_truck');
+  const job = a && FS.jobs.find(j => j.alert_id === a.id && j.state !== 'done');
+  const arrival = tr ? hmU((approveBy != null && !decided ? Math.min(now, approveBy) : now) + truckMin * 60) : null;
+  const noPlan = plan === f.doNothing || plan.cost === 0 && !tr;
+  const chip = f.tripped ? '<span class="chip critical">SHUT IN</span>' : decided ? '<span class="chip ok">APPROVED</span>' : a && a.red && !a.claimed_by ? '<span class="chip critical">UNCLAIMED · ESCALATED</span>' : approveBy != null && !decided ? `<span class="chip ${sev}">NEEDS A DECISION BY ${hmU(approveBy)}</span>` : `<span class="chip ${sev}">${sevName(sev)} · PUMP FAILURE</span>`;
+  const sub = f.tripped ? `The tank hit the shutdown line. Every well here is off until the repair, about ${minTxt(f.H)} after the failure.` : `The tank is at ${f.level.toFixed(0)}% and filling ${f.ratePct.toFixed(1)}%/h with nothing pumping it out.${shutdown ? ` It shuts down at <b>${hmU(shutdown)}</b> unless water is hauled away first.` : ''}`;
+  const why = f.tripped ? `The tank is already at the limit, so no truck can help now. The wells stay off until the repair is done, which costs about ${fmt$(doNothing)}. Acknowledge it so the alert stops re-pinging.`
+    : noPlan ? `The tank peaks below the shutdown line before the repair is done. Doing nothing costs nothing here.`
+    : `Cheapest option.${tr ? ` The truck leaves the ${f.fac.sys} yard and arrives at <b>${arrival}</b>${shutdown ? `, ${minTxt(Math.max(0, (shutdown - (now + truckMin * 60)) / 60))} before shutdown` : ''}.` : ''}${fallback && !decided && approveBy != null ? ` If you wait past <b>${hmU(approveBy)}</b> ${tr ? 'it can\'t make it, and ' : ''}the next best option is ${esc(fallback.label)} for <b>${fmt$(fallback.cost - plan.cost)} more</b>.` : ''} Doing nothing costs ${fmt$(doNothing)}.`;
+  const options = [['Do nothing', f.doNothing.cost, f.doNothing.label]];
+  f.alternatives.forEach((p, kT) => { if (p !== f.doNothing && !options.some(o => o[2] === p.label)) options.push([(kT ? `Up to ${kT} truck${kT > 1 ? 's' : ''}` : 'Shut in wells only') + (p.cost < f.plan.cost - 1 ? ' (trucks needed at other tanks)' : ''), p.cost, p.label]); });
+  options.sort((x, y) => x[1] - y[1]);
+  const ladder = a && a.state === 'awaiting_approval' && a.ladder && a.ladder.length > 1 ? a.ladder.filter((l, k) => k === 0 || l.atMin % 60 === 0 || k === a.ladder.length - 1).slice(0, 6).map(l => (l.atMin ? `+${l.atMin >= 60 ? (l.atMin / 60).toFixed(l.atMin % 60 ? 1 : 0) + ' h' : l.atMin + ' min'}` : 'now') + ' ' + fmt$(l.cost)).join(' → ') : '';
+  const stepAt = f.tripped ? -1 : decided ? (job && job.state === 'covered' ? 2 : tr ? 1 : 2) : 0;
+  const driverName = job && job.pinged.length ? job.pinged.join(', ') : `The ${f.fac.sys} drivers`;
+  el.innerHTML = `<div class="head">${chip}
+      <h2 data-f="${f.fac.id}">${f.tripped ? `${f.fac.id} is shut in` : `A pump failed at ${f.fac.id}`}</h2>
+      <div class="sub">${sub}</div></div>
+    ${(shutdown || approveBy) && !f.tripped ? `<div class="ruler">${rulerSVG({ now, approveBy, shutdown, p10: h && h.p10 != null ? now + h.p10 * 3600 : null, p90: h && h.p90 != null ? now + h.p90 * 3600 : null, truckMin: tr ? truckMin : 0, decided })}</div>` : ''}
+    <div class="todo ${f.tripped ? 'bad' : decided ? 'done' : noPlan ? 'calm' : ''}"><div class="k">${f.tripped ? 'Damage control' : decided ? 'Approved plan' : 'What to do now'}</div>
+      <div class="act"><h3>${f.tripped ? 'Wait for the repair' : noPlan ? 'Nothing. Let the repair finish.' : esc(planTitle(plan, now))}</h3><span class="cost num">${fmt$(plan.cost)}</span></div>
+      <div class="why">${why}</div>
+      <div class="row">${decided || !a ? '' : ticketButtons(a, f.tripped ? 'Acknowledge · wait for repair' : tr ? 'Approve · send the truck' : noPlan ? 'Acknowledge' : 'Approve this plan')}<button class="quiet" data-toggle="options">${ticketOpen.options ? 'Hide other options' : 'See other options'}</button><button class="quiet" data-toggle="why">${ticketOpen.why ? 'Hide the evidence' : 'Why the system thinks this'}</button></div>
+      <div class="status">${a ? `<span class="chip ${a.red && !a.claimed_by ? 'critical' : cls}">${a.red && !a.claimed_by ? 'unclaimed · escalated' : txt}${a.claimed_by ? ' · ' + esc(a.claimed_by) : ''}</span> ` : ''}${a && a.pinged && a.pinged.length ? 'Sent to ' + a.pinged.map(p => p.replace('_', ' ')).join(', ') + '.' : a ? '' : 'Running without the alert server: plan math only.'}${a && a.next_ping_at && !a.acked && !decided ? ' Next ping ' + hmU(a.next_ping_at) + '.' : ''}${minLeft != null && !decided ? ` <b>${minTxt(minLeft)}</b> left to approve.` : ''}</div></div>
+    ${ticketOpen.options ? `<div class="more"><h4>Every option, cheapest first</h4><table>${options.map(o => `<tr class="${o[2] === f.plan.label ? 'best' : ''}"><td>${o[0]}</td><td class="muted">${esc(o[2])}</td><td>${fmt$(o[1])}</td></tr>`).join('')}</table>${ladder ? `<div class="note" style="margin-top:8px">Cost of waiting: ${ladder}</div>` : ''}</div>` : ''}
+    ${ticketOpen.why ? `<div class="more"><h4>Evidence</h4><div class="ev">${f.ev.evidence.map(esc).join('. ')}. Confidence ${(f.ev.confidence * 100).toFixed(0)}%. Shutdown = (${ds.lim.shutdown} − ${f.level.toFixed(1)}) ÷ ${f.ratePct.toFixed(2)} %/h${h ? ` ≈ ${minTxt(h.p50 * 60)} (range ${Math.round(h.p10 * 60)}–${Math.round(h.p90 * 60)} min)` : ''}. Repair takes ${minTxt(f.H)}. ${fmt$(f.lostRevPerHr)}/h at stake while shut in.</div></div>` : ''}
+    ${f.tripped ? stepsHTML([['You acknowledge', 'The alert stops re-pinging.'], ['Repair crew finishes', `About ${minTxt(f.H)} after the failure.`], ['Wells come back on', 'The tank drains and the facility earns again.']], decided ? 1 : 0) : stepsHTML([['You approve', `Here, or from the phone.${minLeft != null && !decided ? ` ${minTxt(minLeft)} left.` : ''}`], tr ? ['A driver claims the truck', `${driverName} ${job ? (job.claims.length ? 'claimed it' : 'pinged') : 'will be pinged'}. First to claim goes.`] : ['Shut-ins are owned', 'The owner is buzzed at the exact minute.'], ['Water hauled away', tr && arrival ? `Truck arrives ${arrival}. The replay continues.` : 'The tank stays under the line until the repair.']], stepAt)}`;
   wireTicket();
-  if (f.tripped) sal('worry', `${f.fac.id.replace(/_/g, ' ')} is shut in. The plan now is damage control: ${plan.label}.`);
-  else if (decided) sal('glad', `Approved. ${plan.label} for ${fmt$(plan.cost)}, and we beat the ${shutdown ? hmU(shutdown) : ''} shutdown.`);
-  else if (minLeft != null && (minLeft <= 30 || (a && a.red))) sal('worry', `Only ${minTxt(minLeft)} left to approve. Miss it and it's ${fallback ? fallback.label + ' for ' + fmt$(fallback.cost) : 'a worse plan'}.`);
-  else if (approveBy != null) sal('point', `${plan.label} fixes this for ${fmt$(plan.cost)}. Approve it before ${hmU(approveBy)} and it stays the cheapest plan.`);
-  else sal('point', `Cheapest fix: ${plan.label} for ${fmt$(plan.cost)}. Doing nothing costs ${fmt$(doNothing)}.`);
 }
 
 // ---------- replay loop ----------
@@ -570,7 +693,7 @@ function frame(ts) {
   if (i >= ds.tel.n - 1) return stop();
   requestAnimationFrame(frame);
 }
-function stop() { playing = false; $('play').textContent = 'Replay'; }
+function stop() { playing = false; $('play').textContent = 'Play'; }
 $('play').onclick = () => {
   if (SRV) return srvPost('/api/replay', { play: !playing });
   if (playing) return stop();
@@ -584,23 +707,42 @@ $('speed').onchange = e => { if (SRV) srvPost('/api/replay', { speed: +e.target.
 function render() {
   const now = ds.tel.t0 + i * Model.STEP;
   $('slider').value = i;
-  $('clock').textContent = fmtT(now) + ' UTC' + (i === ds.tel.n - 1 ? ' · NOW' : '');
+  const d = new Date(now * 1000);
+  $('clock').textContent = hmU(now);
+  $('clock-d').textContent = `${DAY[d.getUTCDay()]} ${d.getUTCDate()} ${d.toLocaleString('en', { month: 'short', timeZone: 'UTC' })} ${d.getUTCFullYear()}${i === ds.tel.n - 1 ? ' · end of recording' : ''}`;
   const tp = performance.now();
   const A = Model.alertsAt(ds, rep.engine, i);
   const planMs = performance.now() - tp;
   const scores = rep.engine.scores();
   renderKpis(A, planMs);
-  renderAlerts(A, scores);
-  renderMap(A, scores);
-  renderCharts(A);
-  renderLog();
+  renderCounts(A, scores);
+  if (view === 'now') { renderAlso(A, scores); renderGlance(A, scores); }
+  if (view === 'alerts') renderAlerts(A, scores);
+  if (view === 'network') { renderMap(A, scores); renderCharts(A); }
+  if (view === 'history') renderLog();
   renderField();
-  renderTicket(A);
+  if (view === 'now') renderTicket(A);
+}
+// Leaks and worn pumps, most urgent first: waiting on a human, then leaks, then earliest onset.
+function otherByUrgency(A) {
+  const rank = e => { const a = FS && FS.alerts.find(x => x.id === e.event_id); return (a && ['awaiting_approval', 'awaiting_claim'].includes(a.state) ? 0 : 2) + (e.category === 'pipeline_leak' ? 0 : 1); };
+  return A.others.slice().sort((x, y) => rank(x) - rank(y) || x.onset_unix - y.onset_unix);
+}
+function watchList(A, scores) {
+  const open = new Set(A.others.map(e => e.facility_id + e.category)), out = [];
+  for (const s of scores) for (const [kind, cat, txt] of [['leak', 'pipeline_leak', 'pipeline pressure sagging'], ['wear', 'pump_degradation', 'pump output slipping']])
+    if (s[kind] >= 0.3 && !open.has(s.id + cat)) out.push({ id: s.id, kind, txt, v: s[kind] });
+  return out;
+}
+function renderCounts(A, scores) {
+  const n = A.failures.length + A.others.length;
+  $('n-now').textContent = A.failures.length || (A.others.length ? 1 : '');
+  $('n-alerts').textContent = n || '';
 }
 
 function renderKpis(A, planMs) {
   const T = rep.totals();
-  $('k-saved').textContent = fmt$(T.saved);
+  $('k-saved').textContent = $('k-saved2').textContent = fmt$(T.saved);
   $('k-saved-s').textContent = `do nothing ${fmt$(T.doNothingCost)} → our plans ${fmt$(T.planCost)} (${rep.plans.size} pump failures so far)`;
   const us = engineUs.length ? engineUs.reduce((a, b) => a + b) / engineUs.length : loadMs.full * 1000 / ds.tel.n;
   $('k-speed').textContent = (loadMs.full).toFixed(0) + ' ms / week';
@@ -615,103 +757,140 @@ function renderKpis(A, planMs) {
   $('k-open-s').textContent = `${fails} pump failure${fails === 1 ? '' : 's'} · ${others} inspection${others === 1 ? '' : 's'}`;
   const risk = A.failures.reduce((a, f) => a + f.doNothing.cost, 0), cost = A.failures.reduce((a, f) => a + f.plan.cost, 0);
   $('k-risk').textContent = fmt$(risk);
+  $('k-risk').style.color = risk ? css('--red') : '';
   $('k-risk-s').textContent = fails ? `cheapest plan ${fmt$(cost)} · saves ${fmt$(risk - cost)}` : 'nothing filling';
 }
 
-function sevOf(cat) { return cat === 'pump_failure' ? 'critical' : 'serious'; }
+// ---------- Now: the side column ----------
+function renderAlso(A, scores) {
+  const main = A.failures.slice().sort((a, b) => (a.hours_to_limit?.p50 ?? 9e9) - (b.hours_to_limit?.p50 ?? 9e9))[0] || otherByUrgency(A)[0];
+  const rows = [];
+  for (const f of A.failures) if (f !== main) {
+    const a = FS && FS.alerts.find(x => x.id === f.ev.event_id);
+    const acts = a && ['awaiting_approval', 'awaiting_claim'].includes(a.state) ? quickActs(a.id, null, 'Approve') : '';
+    rows.push(`<div class="qi ${f.tripped ? 'critical' : a ? a.severity : 'high'}" data-f="${f.fac.id}"><i></i><div><div class="t">Pump failure · ${f.fac.id}</div><div class="s">${a ? (STATE[a.state] || [a.state])[0] : esc(f.plan.label)} · ${fmt$(f.plan.cost)}</div>${acts ? `<div class="qa">${acts}</div>` : ''}</div><div class="r"><b>${a && a.approve_by_ts ? hm(a.approve_by_ts) : f.hours_to_limit ? minTxt(f.hours_to_limit.p50 * 60) : '–'}</b>${a && a.approve_by_ts ? 'approve by' : 'to shutdown'}</div></div>`);
+  }
+  for (const e of otherByUrgency(A)) if (e !== main) {
+    const a = FS && FS.alerts.find(x => x.id === e.event_id), leak = e.category === 'pipeline_leak';
+    const q = FS && FS.queue.find(q => q.asset_id === e.asset_id && q.state !== 'done');
+    const acts = leak ? (a && a.state === 'awaiting_claim' ? quickActs(a.id, null, 'Take it') : '') : quickActs(null, e.asset_id);
+    rows.push(`<div class="qi ${leak ? 'high' : ''}" data-f="${e.facility_id}"><i></i><div><div class="t">${leak ? 'Leak' : 'Worn pump'} · ${e.facility_id}</div><div class="s">${a && a.claimed_by ? esc(a.claimed_by) + ' is on it' : q && q.state === 'assigned' ? 'inspector assigned' : a ? (STATE[a.state] || [a.state])[0] : 'send an inspector'}</div>${acts ? `<div class="qa">${acts}</div>` : ''}</div><div class="r"><b>${q ? q.deadline_ts.slice(5, 10).replace('-', '/') + ' ' + hm(q.deadline_ts) : leak ? 'today' : a && a.state === 'inspected' ? 'done' : '24 h'}</b>${leak ? 'look at it' : a && a.state === 'inspected' ? 'inspection' : 'inspect by'}</div></div>`);
+  }
+  for (const w of watchList(A, scores)) rows.push(`<div class="qi wait" data-f="${w.id}"><i></i><div><div class="t">Watch · ${w.id}</div><div class="s">${w.txt}, not confirmed. Nobody buzzed.</div></div><div class="r"><b>${(w.v * 100).toFixed(0)}%</b>of the way</div></div>`);
+  $('also-n').textContent = rows.length ? String(rows.length) : '';
+  $('also').innerHTML = rows.join('') || '<div class="empty">Nothing else is open.</div>';
+  $('also').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; showView('alerts'); });
+  wireActs($('also'));
+}
+function renderGlance(A, scores) {
+  const failing = new Set(A.failures.map(f => f.fac.id)), inspect = new Set(A.others.map(e => e.facility_id)), watch = new Set(watchList(A, scores).map(w => w.id));
+  $('glance-n').textContent = `${ds.facs.length} facilities`;
+  $('glance').innerHTML = ds.systems.map(s => `<div class="sys"><b>${s.id}</b><div class="dots">${s.facilities.map(f => `<i class="${failing.has(f.id) ? 'bad' : inspect.has(f.id) ? 'warn' : watch.has(f.id) ? 'watch' : ''}${f.id === sel ? ' sel' : ''}" data-f="${f.id}" title="${f.id}"></i>`).join('')}</div></div>`).join('');
+  $('glance').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; showView('network'); });
+}
+
+// ---------- Alerts: every open problem with its options ----------
 function renderAlerts(A, scores) {
   const out = [];
   for (const f of A.failures) {
     const h = f.hours_to_limit, sd = ds.lim.shutdown, wr = ds.lim.warning;
-    const trip = f.tripped ? 'SHUT IN' : h && h.p50 != null ? `${Math.floor(h.p50)}h ${String(Math.round(h.p50 % 1 * 60)).padStart(2, '0')}m` : '–';
+    const trip = f.tripped ? 'Shut in' : h && h.p50 != null ? minTxt(h.p50 * 60) : '–';
     const options = [['Do nothing', f.doNothing.cost, f.doNothing.label]];
     f.alternatives.forEach((p, kT) => { if (p !== f.doNothing && !options.some(o => o[2] === p.label)) options.push([(kT ? `Up to ${kT} truck${kT > 1 ? 's' : ''}` : 'Shut in wells only') + (p.cost < f.plan.cost - 1 ? ' (trucks needed at other tanks)' : ''), p.cost, p.label]); });
     options.sort((a, b) => a[1] - b[1]);
-    out.push(`<div class="alert critical" data-f="${f.fac.id}">
-      <div class="top"><b>${f.fac.id}</b><span class="tag critical">PUMP FAILURE</span></div>
-      <div class="top"><span class="count">${trip}</span><span class="muted">to shutdown${h && !f.tripped ? ` · range ${Math.round(h.p10 * 60)}–${Math.round(h.p90 * 60)} min` : ''}</span></div>
-      <div class="bar" title="tank level"><i style="width:${Math.min(100, f.level)}%"></i><b style="left:${wr}%;background:var(--warning)"></b><b style="left:${sd}%;background:var(--critical)"></b></div>
-      <div class="ink2">Tank ${f.level.toFixed(1)}% · filling ${f.ratePct.toFixed(1)}%/h · repair done in ${(f.H / 60).toFixed(1)} h · ${fmt$(f.lostRevPerHr)}/h at stake</div>
-      <div style="margin-top:6px"><b>Do this:</b> ${f.plan.label} <b class="good-text">${fmt$(f.plan.cost)}</b></div>
-      ${(() => { const a = FS && FS.alerts.find(a => a.id === f.ev.event_id); if (!a) return ''; const [txt, cls] = STATE[a.state] || [a.state, '']; return `<div class="ink2" style="margin-top:4px"><span class="pill ${a.severity}">${a.severity}</span> <span class="pill ${cls}">${txt}</span>${a.approve_by_ts ? ` · approve by <b>${hm(a.approve_by_ts)}</b>` : ''}${a.fallback && a.state === 'awaiting_approval' ? ` · miss it and it's ${a.fallback.label} for ${fmt$(a.fallback.cost)}` : ''}${a.claimed_by ? ` · ${a.claimed_by}` : ''}${a.state === 'awaiting_approval' && a.ladder && a.ladder.length > 1 ? `<br>Waiting costs: ${a.ladder.filter((l, k) => k === 0 || l.atMin % 60 === 0 || k === a.ladder.length - 1).slice(0, 6).map(l => (l.atMin ? `+${l.atMin >= 60 ? (l.atMin / 60).toFixed(l.atMin % 60 ? 1 : 0) + ' h' : l.atMin + ' min'}` : 'now') + ' ' + fmt$(l.cost)).join(' → ')}` : ''}</div>`; })()}
-      <table class="alt">${options.map(o => `<tr class="${o[2] === f.plan.label ? 'best' : ''}"><td>${o[0]}</td><td>${o[2]}</td><td>${fmt$(o[1])}</td></tr>`).join('')}</table>
+    const a = FS && FS.alerts.find(a => a.id === f.ev.event_id);
+    const [txt, cls] = a ? (STATE[a.state] || [a.state, '']) : ['', ''];
+    out.push(`<div class="alert" data-f="${f.fac.id}">
+      <div class="top"><b>${f.fac.id}</b><span class="chip ${f.tripped ? 'critical' : a ? a.severity : 'high'}">PUMP FAILURE</span></div>
+      <div class="big">${trip} <span class="note">to shutdown${h && !f.tripped ? ` · range ${Math.round(h.p10 * 60)}–${Math.round(h.p90 * 60)} min` : ''}</span></div>
+      <div class="bar" title="tank level"><i style="width:${Math.min(100, f.level)}%"></i><b style="left:${wr}%;background:var(--amber)"></b><b style="left:${sd}%;background:var(--red)"></b></div>
+      <div class="note">Tank ${f.level.toFixed(1)}% · filling ${f.ratePct.toFixed(1)}%/h · repair done in ${(f.H / 60).toFixed(1)} h · ${fmt$(f.lostRevPerHr)}/h at stake</div>
+      <div style="margin-top:8px"><b>Do this:</b> ${esc(f.plan.label)} <b class="good-text mono">${fmt$(f.plan.cost)}</b></div>
+      ${a && ['awaiting_approval', 'awaiting_claim'].includes(a.state) ? `<div class="row" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${quickActs(a.id, null, 'Approve')}</div>` : ''}
+      ${a ? `<div class="note" style="margin-top:6px"><span class="chip ${a.severity}">${a.severity}</span> <span class="chip ${cls}">${txt}</span>${a.approve_by_ts ? ` · approve by <b>${hm(a.approve_by_ts)}</b>` : ''}${a.fallback && a.state === 'awaiting_approval' ? ` · miss it and it's ${esc(a.fallback.label)} for ${fmt$(a.fallback.cost)}` : ''}${a.claimed_by ? ` · ${esc(a.claimed_by)}` : ''}</div>` : ''}
+      <table class="alt">${options.map(o => `<tr class="${o[2] === f.plan.label ? 'best' : ''}"><td>${o[0]}</td><td class="muted">${esc(o[2])}</td><td>${fmt$(o[1])}</td></tr>`).join('')}</table>
     </div>`);
   }
   for (const e of A.others) {
-    const leak = e.category === 'pipeline_leak';
-    out.push(`<div class="alert serious" data-f="${e.facility_id}">
-      <div class="top"><b>${e.facility_id}</b><span class="tag serious">${leak ? 'LEAK' : 'PUMP WEAR'}</span></div>
-      <div class="ink2">${e.evidence.join(' · ')}</div>
-      <div>Confidence ${(e.confidence * 100).toFixed(0)}%</div><div class="bar"><i style="width:${e.confidence * 100}%;background:var(--serious)"></i></div>
-      <div><b>Do this:</b> send inspector to ${e.asset_id} <span class="muted">· since ${fmtT(e.onset_unix)}</span></div>
-      ${leak ? '' : SV && SV.mv.length ? `<div class="muted" style="margin-top:4px">Repair it now: in this data, worn pumps failed ~${Math.round(SV.mv.reduce((a, m) => a + m.warnedHours, 0) / SV.mv.length)} h after the warning.</div>` : ''}
+    const leak = e.category === 'pipeline_leak', a = FS && FS.alerts.find(x => x.id === e.event_id);
+    const acts = leak ? (a && a.state === 'awaiting_claim' ? quickActs(a.id, null, 'Take it') : '') : quickActs(null, e.asset_id);
+    const q = FS && FS.queue.find(q => q.asset_id === e.asset_id && q.state !== 'done' && q.state !== 'cancelled');
+    const st = a && a.claimed_by ? `${esc(a.claimed_by)} is on it` : q ? (q.state === 'assigned' ? 'Inspector assigned' : 'Inspection queued') + ` · inspect by ${hm(q.deadline_ts)}` : a ? (STATE[a.state] || [a.state])[0] : '';
+    out.push(`<div class="alert" data-f="${e.facility_id}">
+      <div class="top"><b>${e.facility_id}</b><span class="chip ${leak ? 'high' : 'low'}">${leak ? 'LEAK' : 'WORN PUMP'}</span></div>
+      <div class="note">${e.evidence.map(esc).join(' · ')}</div>
+      <div class="note" style="margin-top:6px">Confidence ${(e.confidence * 100).toFixed(0)}%</div><div class="bar"><i style="width:${e.confidence * 100}%;background:var(--orange)"></i></div>
+      <div><b>Do this:</b> send an inspector to ${e.asset_id} <span class="note">· since ${fmtT(e.onset_unix)}</span></div>
+      ${st ? `<div class="note" style="margin-top:4px">${st}</div>` : ''}
+      ${acts ? `<div class="row" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${acts}</div>` : ''}
+      ${leak ? '' : SV && SV.mv.length ? `<div class="note" style="margin-top:4px">Repair it now: in this data, worn pumps failed ~${Math.round(SV.mv.reduce((a, m) => a + m.warnedHours, 0) / SV.mv.length)} h after the warning.</div>` : ''}
     </div>`);
   }
-  // Early warning: rising suspicion that has not crossed the alarm yet.
-  const open = new Set(A.others.map(e => e.facility_id + e.category));
-  for (const s of scores) for (const [kind, cat, txt] of [['leak', 'pipeline_leak', 'pipeline pressure sagging'], ['wear', 'pump_degradation', 'pump output slipping']])
-    if (s[kind] >= 0.3 && !open.has(s.id + cat)) out.push(`<div class="alert warning" data-f="${s.id}">
-      <div class="top"><b>${s.id}</b><span class="tag warning">WATCH</span></div>
-      <div class="ink2">${txt}: ${(s[kind] * 100).toFixed(0)}% of the way to an alarm</div>
-      <div class="bar"><i style="width:${s[kind] * 100}%;background:var(--warning)"></i></div></div>`);
-  $('alerts').innerHTML = out.join('') || '<div class="muted">All clear. Every pump, tank and pipeline is reading normal.</div>';
-  $('alerts').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
+  for (const w of watchList(A, scores)) out.push(`<div class="alert" data-f="${w.id}">
+      <div class="top"><b>${w.id}</b><span class="chip low">WATCH</span></div>
+      <div class="note">${w.txt}: ${(w.v * 100).toFixed(0)}% of the way to an alarm</div>
+      <div class="bar"><i style="width:${w.v * 100}%;background:var(--amber)"></i></div></div>`);
+  $('alerts').innerHTML = out.join('') || '<div class="empty">All clear. Every pump, tank and pipeline is reading normal.</div>';
+  $('alerts').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; showView('network'); });
+  wireActs($('alerts'));
 }
 
 // ---------- map: one panel per system, tanks drawn with their level ----------
 function renderMap(A, scores) {
   const svg = $('map'), W = svg.clientWidth || 600, H = svg.clientHeight || 460;
   const n = ds.systems.length, cols = W >= 900 ? 3 : W >= 560 ? 2 : 1, rows = Math.ceil(n / cols);
-  const pw = W / cols, ph = H / rows, gap = 8;
+  const pw = W / cols, ph = H / rows, gap = 12;
   const failing = new Map(A.failures.map(f => [f.fac.id, f]));
   const inspect = new Map(A.others.map(e => [e.facility_id, e]));
-  const watch = new Map(scores.filter(s => s.leak >= 0.3 || s.wear >= 0.3).map(s => [s.id, s]));
-  const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const watch = new Set(watchList(A, scores).map(w => w.id));
   const now = ds.tel.t0 + i * Model.STEP;
+  const ink = css('--ink'), ink2 = css('--ink-2'), ink3 = css('--ink-3'), line = css('--line'), red = css('--red'), orange = css('--orange'), amber = css('--amber'), mint = css('--mint'), water = css('--water'), rail = css('--rail');
   let g = '';
   ds.systems.forEach((s, k) => {
     const ox = (k % cols) * pw + gap / 2, oy = Math.floor(k / cols) * ph + gap / 2, w = pw - gap, h = ph - gap;
     const fleet = ds.ops.systems[s.id].emergency_fleet_size;
     const bad = s.facilities.filter(f => failing.has(f.id)).length, insp = s.facilities.filter(f => inspect.has(f.id)).length;
-    const status = bad ? [`${bad} pump failure${bad > 1 ? 's' : ''}`, css('--critical')] : insp ? [`${insp} to inspect`, css('--serious')] : s.facilities.some(f => watch.has(f.id)) ? ['early warning', '#b8891a'] : ['all normal', '#2f7f3b'];
-    g += `<rect x="${ox}" y="${oy}" width="${w}" height="${h}" rx="14" fill="${bad ? '#fff0e6' : css('--surface')}" stroke="${css('--ink')}" stroke-width="2.5"/>
-          <text x="${ox + 14}" y="${oy + 24}" style="font:600 15px ${css('--display')};fill:${css('--ink')}">System ${s.id.replace(/^S/, '')}</text>
-          <text x="${ox + w - 14}" y="${oy + 24}" text-anchor="end" style="font-weight:800;fill:${status[1]}">${status[0]}</text>`;
-    // tanks in a row, yard and disposal on the right
-    const fx0 = ox + 18, right = 126, slot = Math.min(84, (w - right - 18) / s.facilities.length), ty = oy + 62, th = Math.min(h - 106, 86), tw = Math.min(46, slot - 14);
+    const status = bad ? [`${bad} pump failure${bad > 1 ? 's' : ''}`, red] : insp ? [`${insp} to inspect`, orange] : s.facilities.some(f => watch.has(f.id)) ? ['early warning', '#a4720a'] : ['all normal', mint];
+    g += `<rect x="${ox}" y="${oy}" width="${w}" height="${h}" rx="10" fill="${bad ? css('--red-bg') : css('--paper')}" stroke="${line}"/>
+          <text x="${ox + 14}" y="${oy + 24}" style="font:600 14px Geologica, sans-serif;fill:${ink}">System ${s.id.replace(/^S/, '')}</text>
+          <text x="${ox + w - 14}" y="${oy + 24}" text-anchor="end" style="font-weight:500;fill:${status[1]}">${status[0]}</text>`;
+    const fx0 = ox + 18, right = 126, slot = Math.min(84, (w - right - 18) / s.facilities.length), ty = oy + 76, th = Math.min(h - 120, 86), tw = Math.min(46, slot - 14);
     const dx = ox + w - 36, dy = ty + th - 10;
+    const runs = [];
     s.facilities.forEach((f, j) => {
       const fac = ds.facs.find(x => x.id === f.id), lvl = fac ? fac.s.level[i] : null, off = fac && fac.s.pst[i] !== 1;
       const cx = fx0 + j * slot + tw / 2, x = cx - tw / 2;
-      const fl = failing.get(f.id), e = inspect.get(f.id), wt = watch.get(f.id);
-      const col = fl ? css('--critical') : e ? css('--serious') : wt ? css('--warning') : css('--good');
+      const fl = failing.get(f.id), e = inspect.get(f.id), wt = watch.has(f.id);
+      const col = fl ? red : e ? orange : wt ? amber : mint;
       const name = f.id.replace(/^.*FACILITY_/, '');
-      // pipeline to the disposal site (dashed if a leak is suspected)
       const leak = e && e.category === 'pipeline_leak';
-      g += `<line x1="${cx}" y1="${ty + th}" x2="${dx}" y2="${dy + 18}" stroke="${leak ? css('--critical') : css('--axis')}" stroke-width="${leak ? 3 : 2}" ${leak ? 'stroke-dasharray="4 4"' : ''}/>`;
+      g += `<line x1="${cx}" y1="${ty + th}" x2="${dx}" y2="${dy + 18}" stroke="${leak ? red : line}" stroke-width="${leak ? 2.5 : 1.5}" ${leak ? 'stroke-dasharray="4 4"' : ''}/>`;
       const fillH = lvl != null ? Math.max(0, Math.min(1, lvl / 100)) * (th - 6) : 0;
       g += `<g class="fac" data-f="${f.id}" style="cursor:pointer">
-        <rect x="${x}" y="${ty}" width="${tw}" height="${th}" rx="9" fill="${css('--surface')}" stroke="${css('--ink')}" stroke-width="${f.id === sel ? 3.5 : 2.5}"/>
-        <rect x="${x + 3}" y="${ty + th - 3 - fillH}" width="${tw - 6}" height="${fillH}" rx="6" fill="${fl ? css('--critical') : css('--s1')}" opacity="${fl ? .85 : .9}"/>
-        <line x1="${x}" y1="${ty + 3 + (th - 6) * (1 - ds.lim.shutdown / 100)}" x2="${x + tw}" y2="${ty + 3 + (th - 6) * (1 - ds.lim.shutdown / 100)}" stroke="${css('--critical')}" stroke-width="2" stroke-dasharray="3 3"/>
-        <rect x="${cx - 10}" y="${ty - 6}" width="20" height="8" rx="4" fill="${css('--ink')}"/>
-        <circle cx="${cx}" cy="${ty - 14}" r="7" fill="${col}" stroke="${css('--ink')}" stroke-width="2"/>
-        <text x="${cx}" y="${ty + th / 2 + 4}" text-anchor="middle" style="font:700 13px ${css('--display')};fill:${css('--ink')}">${lvl != null ? lvl.toFixed(0) + '%' : '–'}</text>
-        <text x="${cx}" y="${ty + th + 16}" text-anchor="middle" style="font-weight:800;fill:${css('--ink')}">${name}</text>
-        <text x="${cx}" y="${ty + th + 29}" text-anchor="middle" style="fill:${fl ? css('--critical') : css('--muted')};font-size:10px">${fl ? 'pump down' : e ? (leak ? 'leak' : 'worn pump') : off ? 'pump off' : 'pumping'}</text>
-        <title>${esc(f.id)}${lvl != null ? ` · tank ${lvl.toFixed(1)}%` : ''}${fl ? ` · pump failure, shutdown in ${fl.hours_to_limit && fl.hours_to_limit.p50 != null ? fl.hours_to_limit.p50.toFixed(1) + ' h' : '?'}` : e ? ` · ${e.evidence[0]}` : ''}</title></g>`;
-      // truck on its way when the plan uses trucks
-      if (fl && fl.plan.trucks) {
-        const eta = now + ds.ops.systems[s.id].facilities[f.id].response_min * 60;
-        g += `<line x1="${dx - 22}" y1="${ty - 8}" x2="${cx + tw / 2 + 4}" y2="${ty - 8}" stroke="${css('--s1')}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>
-              <text x="${cx + tw / 2 + 6}" y="${ty - 24}" style="fill:${css('--s1')};font-weight:800">${fl.plan.trucks} truck${fl.plan.trucks > 1 ? 's' : ''} · arrives ${fmtT(eta).slice(6)}</text>`;
-      }
+        <rect x="${x}" y="${ty}" width="${tw}" height="${th}" rx="6" fill="#fff" stroke="${f.id === sel ? ink : fl ? red : ink2}" stroke-width="${f.id === sel ? 2.5 : 1.5}"/>
+        <rect x="${x + 3}" y="${ty + th - 3 - fillH}" width="${tw - 6}" height="${fillH}" rx="3" fill="${fl ? red : water}" opacity="${fl ? .7 : .6}"/>
+        <line x1="${x}" y1="${ty + 3 + (th - 6) * (1 - ds.lim.shutdown / 100)}" x2="${x + tw}" y2="${ty + 3 + (th - 6) * (1 - ds.lim.shutdown / 100)}" stroke="${red}" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <circle cx="${cx}" cy="${ty - 10}" r="5" fill="${col}"/>
+        <text x="${cx}" y="${ty + th / 2 + 4}" text-anchor="middle" style="font:500 12px Azeret Mono, monospace;fill:${ink}">${lvl != null ? lvl.toFixed(0) + '%' : '–'}</text>
+        <text x="${cx}" y="${ty + th + 16}" text-anchor="middle" style="font-weight:500;fill:${ink}">${name}</text>
+        <text x="${cx}" y="${ty + th + 29}" text-anchor="middle" style="fill:${fl ? red : ink3};font-size:10px">${fl ? 'pump down' : e ? (leak ? 'leak' : 'worn pump') : off ? 'pump off' : 'pumping'}</text>
+        <title>${esc(f.id)}${lvl != null ? ` · tank ${lvl.toFixed(1)}%` : ''}${fl ? ` · pump failure, shutdown in ${fl.hours_to_limit && fl.hours_to_limit.p50 != null ? fl.hours_to_limit.p50.toFixed(1) + ' h' : '?'}` : e ? ` · ${esc(e.evidence[0])}` : ''}</title></g>`;
+      if (fl && fl.plan.trucks) runs.push({ x: cx + tw / 2 + 4, name, n: fl.plan.trucks, eta: fmtT(now + ds.ops.systems[s.id].facilities[f.id].response_min * 60).slice(6) });
     });
-    // yard (trucks) top right, disposal bottom right
-    const yx = dx - 10, yy = ty - 8;
-    g += `<g><rect x="${yx - 24}" y="${yy - 10}" width="30" height="18" rx="4" fill="${css('--surface')}" stroke="${css('--ink')}" stroke-width="2.5"/><path d="M${yx + 6} ${yy - 4}h10l6 7v5h-16z" fill="${css('--surface')}" stroke="${css('--ink')}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${yx - 14}" cy="${yy + 10}" r="4" fill="${css('--ink')}"/><circle cx="${yx + 12}" cy="${yy + 10}" r="4" fill="${css('--ink')}"/>
-          <text x="${dx - 8}" y="${yy + 30}" text-anchor="middle" style="font-weight:800;fill:${css('--ink')}">${fleet} truck${fleet > 1 ? 's' : ''}</text><text x="${dx - 8}" y="${yy + 42}" text-anchor="middle" style="fill:${css('--muted')};font-size:10px">at the yard</text><title>${esc(s.id)} truck yard</title></g>`;
-    g += `<g><path d="M${dx} ${dy + 4}l16 14-16 14-16-14z" fill="${css('--surface')}" stroke="${css('--ink')}" stroke-width="2.5" stroke-linejoin="round"/><text x="${dx}" y="${dy + 48}" text-anchor="middle" style="font-weight:800;fill:${css('--ink')}">disposal</text><title>${esc(s.disposal_site.id)}</title></g>`;
+    // one dispatch line and one label per system, so several runs never overlap
+    if (runs.length) {
+      const total = runs.reduce((a, r) => a + r.n, 0), x0 = Math.min(...runs.map(r => r.x));
+      const label = runs.length === 1 ? `${total} truck${total > 1 ? 's' : ''} · arrives ${runs[0].eta}` : `${total} trucks · ${runs.map(r => `${r.name} ${r.eta}`).join(' · ')}`;
+      // the route runs above the status dots, with a short drop to each tank getting a truck
+      const ry = ty - 24, dash = `stroke="${orange}" stroke-width="2" stroke-dasharray="2 5" stroke-linecap="round"`;
+      g += `<line x1="${dx - 36}" y1="${ry}" x2="${x0 - tw / 2 - 4}" y2="${ry}" ${dash}/>`
+        + runs.map(r => `<line x1="${r.x - tw / 2 - 4}" y1="${ry}" x2="${r.x - tw / 2 - 4}" y2="${ty - 17}" ${dash}/>`).join('')
+        + `<text x="${ox + w - 14}" y="${ty - 38}" text-anchor="end" style="fill:${orange};font-weight:500">${label}</text>`;
+    }
+    const yx = dx - 10, yy = ty - 22;
+    g += `<g><rect x="${yx - 24}" y="${yy - 10}" width="30" height="18" rx="3" fill="${rail}"/><path d="M${yx + 6} ${yy - 4}h10l6 7v5h-16z" fill="${rail}"/><circle cx="${yx - 14}" cy="${yy + 10}" r="3.5" fill="${ink}"/><circle cx="${yx + 12}" cy="${yy + 10}" r="3.5" fill="${ink}"/>
+          <text x="${dx - 8}" y="${yy + 30}" text-anchor="middle" style="font-weight:500;fill:${ink}">${fleet} truck${fleet > 1 ? 's' : ''}</text><text x="${dx - 8}" y="${yy + 42}" text-anchor="middle" style="fill:${ink3};font-size:10px">at the yard</text><title>${esc(s.id)} truck yard</title></g>`;
+    g += `<g><path d="M${dx} ${dy + 4}l16 14-16 14-16-14z" fill="${css('--paper-2')}" stroke="${ink2}" stroke-width="1.5" stroke-linejoin="round"/><text x="${dx}" y="${dy + 48}" text-anchor="middle" style="font-weight:500;fill:${ink}">disposal</text><title>${esc(s.disposal_site.id)}</title></g>`;
   });
   svg.innerHTML = g;
   svg.querySelectorAll('.fac').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
@@ -726,13 +905,14 @@ function setupCanvas(c) {
   return [x, w, h];
 }
 function drawChart(id, spec) {
-  const c = $(id), [x, w, h] = setupCanvas(c), m = { l: 36, r: 46, t: 8, b: 20 };
+  const c = $(id), [x, w, h] = setupCanvas(c), m = { l: 36, r: 56, t: 10, b: 22 };
+  if (!w) return;
   const X = j => m.l + (j - spec.j0) / (spec.j1 - spec.j0) * (w - m.l - m.r);
   const Y = v => m.t + (spec.ymax - v) / (spec.ymax - spec.ymin) * (h - m.t - m.b);
-  x.font = '800 11px Nunito, sans-serif'; x.fillStyle = css('--muted'); x.strokeStyle = css('--grid'); x.lineWidth = 1;
+  x.font = '500 11px Geologica, sans-serif'; x.fillStyle = css('--ink-3'); x.strokeStyle = css('--paper-2'); x.lineWidth = 1;
   for (const v of spec.ticks) { x.beginPath(); x.moveTo(m.l, Y(v)); x.lineTo(w - m.r, Y(v)); x.stroke(); x.fillText(v, 4, Y(v) + 4); }
   for (let j = Math.ceil(spec.j0 / 72) * 72; j <= spec.j1; j += 72) x.fillText(fmtT(ds.tel.t0 + j * 300).slice(6), X(j) - 14, h - 5);
-  if (spec.future) { x.fillStyle = 'rgba(26,25,48,0.06)'; x.fillRect(X(i), m.t, X(spec.j1) - X(i), h - m.t - m.b); x.fillStyle = css('--muted'); x.fillText('forecast', X(i) + 4, m.t + 10); }
+  if (spec.future) { x.fillStyle = 'rgba(29,34,36,0.05)'; x.fillRect(X(i), m.t, X(spec.j1) - X(i), h - m.t - m.b); x.fillStyle = css('--ink-3'); x.fillText('forecast', X(i) + 4, m.t + 10); }
   for (const r of spec.refs || []) { x.strokeStyle = r.color; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(m.l, Y(r.v)); x.lineTo(w - m.r, Y(r.v)); x.stroke(); x.setLineDash([]); x.fillStyle = r.color; x.fillText(r.label, w - m.r + 4, Y(r.v) + 4); }
   for (const s of spec.series) {
     x.strokeStyle = s.color; x.lineWidth = 2; x.setLineDash(s.dash || []); x.beginPath(); let pen = false;
@@ -756,12 +936,12 @@ function renderCharts(A, hover = {}) {
   }
   const pred = [];
   if (fl && !fl.tripped) for (let j = i; j <= j1; j++) pred.push([j, Math.min(ds.lim.shutdown, fl.level + fl.ratePct * (j - i) / 12)]);
-  $('chart-title').textContent = `${fac.id} · tank level (%), last 24 h` + (fl ? ' + 6 h forecast' : '');
+  $('chart-title').innerHTML = `${fac.id} · tank level (%), last 24 h${fl ? ' + 6 h forecast' : ''}`;
   drawChart('c-level', { j0, j1, ymin: 0, ymax: 100, ticks: [0, 25, 50, 75, 100], future: !!fl, hover: hover['c-level'],
-    refs: [{ v: ds.lim.warning, color: css('--warning'), label: 'warn ' + ds.lim.warning }, { v: ds.lim.shutdown, color: css('--critical'), label: 'shut ' + ds.lim.shutdown }],
-    series: [{ pts: lvl, color: css('--s1'), name: 'level %' }, { pts: pred, color: css('--s1'), dash: [5, 4], name: 'forecast %' }] });
+    refs: [{ v: ds.lim.warning, color: css('--amber'), label: 'warn ' + ds.lim.warning }, { v: ds.lim.shutdown, color: css('--red'), label: 'shut ' + ds.lim.shutdown }],
+    series: [{ pts: lvl, color: css('--water'), name: 'level %' }, { pts: pred, color: css('--water'), dash: [5, 4], name: 'forecast %' }] });
   drawChart('c-health', { j0, j1: i, ymin: 80, ymax: 104, ticks: [80, 85, 90, 95, 100], hover: hover['c-health'],
-    series: [{ pts: hp, color: css('--s1'), name: 'pump health %' }, { pts: dl, color: css('--s2'), name: 'delivered %' }] });
+    series: [{ pts: hp, color: css('--water'), name: 'pump health %' }, { pts: dl, color: css('--orange'), name: 'delivered %' }] });
 }
 for (const id of ['c-level', 'c-health']) {
   const c = $(id), tip = $('tip');
@@ -786,14 +966,14 @@ function setupSavings(full) {
   $('k-more').textContent = fmt$(mvSave + rbSave);
   $('k-more-s').textContent = `${fmt$(mvSave)} early pump repairs · ${fmt$(rbSave)} moving idle trucks · no new trucks`;
   const mx = Math.max(full.doNothingCost, 1);
-  $('sv-plan').innerHTML = `<div class="bar2" style="width:100%;background:var(--critical);color:var(--ink)">Do nothing ${fmt$(full.doNothingCost)}</div>
-    <div class="bar2" style="width:${Math.max(18, 100 * full.planCost / mx)}%;background:var(--good);color:var(--ink)">Our plans ${fmt$(full.planCost)}</div>
-    <div class="ink2" style="font-size:13px;margin-top:8px">Every truck × trip × well × exact-minute mix is checked, with shared trucks split across tanks. No plan under the rules is cheaper, so the next savings come from ② and ③.</div>`;
+  $('sv-plan').innerHTML = `<div class="bar2" style="width:100%;background:var(--red)">Do nothing ${fmt$(full.doNothingCost)}</div>
+    <div class="bar2" style="width:${Math.max(22, 100 * full.planCost / mx)}%;background:var(--mint)">Our plans ${fmt$(full.planCost)}</div>
+    <div class="note" style="margin-top:10px">Every truck × trip × well × exact-minute mix is checked, with shared trucks split across tanks. No plan under the rules is cheaper, so the next savings come from the other two ideas.</div>`;
   $('sv-maint').innerHTML = mv.length ? mv.map(m => `<div class="mrow" data-f="${m.facility}"><b>${m.asset}</b> · wear alert ${fmtT(m.wear.detected_unix)} → failed ${fmtT(m.failure.onset_unix)}
-      <div class="track"><i></i><b>×</b></div><div class="muted" style="margin-top:6px">${m.warnedHours.toFixed(0)} h warning · avoid ${fmt$(m.planCost)} of trucks (${fmt$(m.doNothingCost)} if nobody acted)</div></div>`).join('')
-      + `<div style="margin-top:8px"><b class="good-text">${fmt$(mvSave)}</b> of emergency trucks avoidable this dataset</div>`
-    : '<div class="muted">No worn pump went on to fail in this dataset.</div>';
-  $('sv-maint').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { stop(); sel = el.dataset.f; seek(SVsel(el.dataset.f)); });
+      <div class="track"><i></i><b>×</b></div><div class="note" style="margin-top:8px">${m.warnedHours.toFixed(0)} h warning · avoid ${fmt$(m.planCost)} of trucks (${fmt$(m.doNothingCost)} if nobody acted)</div></div>`).join('')
+      + `<div style="margin-top:10px"><b class="good-text">${fmt$(mvSave)}</b> of emergency trucks avoidable this dataset</div>`
+    : '<div class="note">No worn pump went on to fail in this dataset.</div>';
+  $('sv-maint').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { stop(); sel = el.dataset.f; seek(SVsel(el.dataset.f)); showView('network'); });
   SV.size = Object.fromEntries(Object.entries(fleetT).map(([k, v]) => [k, v.now]));
   drawFleet();
 }
@@ -804,10 +984,10 @@ function drawFleet() {
   let tot = 0, tot0 = 0, n = 0, n0 = 0;
   $('sv-fleet').innerHTML = '<tr class="muted"><td>System</td><td>Trucks</td><td></td><td>Plan cost / week</td></tr>' + Object.keys(size).map(k => {
     const c = fleetT[k].costs[size[k]], c0 = fleetT[k].costs[fleetT[k].now]; tot += c; tot0 += c0; n += size[k]; n0 += fleetT[k].now;
-    const col = c < c0 - 1 ? 'var(--good)' : c > c0 + 1 ? 'var(--critical)' : 'inherit';
+    const col = c < c0 - 1 ? 'var(--mint)' : c > c0 + 1 ? 'var(--red)' : 'inherit';
     return `<tr><td><b>${k}</b></td><td><button data-k="${k}" data-d="-1" aria-label="fewer trucks in ${k}">−</button> ${size[k]} <button data-k="${k}" data-d="1" aria-label="more trucks in ${k}">+</button></td><td class="muted">${size[k] !== fleetT[k].now ? `(today ${fleetT[k].now})` : ''}</td><td style="color:${col}">${fmt$(c)}</td></tr>`;
   }).join('');
-  $('sv-fleet-s').innerHTML = `${n} trucks (today ${n0}) · <b style="color:${tot < tot0 - 1 ? 'var(--good)' : tot > tot0 + 1 ? 'var(--critical)' : 'inherit'}">${fmt$(tot)}/week</b> ${tot < tot0 - 1 ? `saves ${fmt$(tot0 - tot)}` : tot > tot0 + 1 ? `costs ${fmt$(tot - tot0)} more` : ''} · computed in ${SV.ms.toFixed(0)} ms`;
+  $('sv-fleet-s').innerHTML = `${n} trucks (today ${n0}) · <b style="color:${tot < tot0 - 1 ? 'var(--mint)' : tot > tot0 + 1 ? 'var(--red)' : 'inherit'}">${fmt$(tot)}/week</b> ${tot < tot0 - 1 ? `saves ${fmt$(tot0 - tot)}` : tot > tot0 + 1 ? `costs ${fmt$(tot - tot0)} more` : ''} · computed in ${SV.ms.toFixed(0)} ms`;
   $('sv-fleet').querySelectorAll('button').forEach(b => b.onclick = () => { const k = b.dataset.k, v = size[k] + +b.dataset.d; if (v >= 0 && v < fleetT[k].costs.length) { size[k] = v; drawFleet(); } });
 }
 $('sv-best').onclick = () => { SV.size = Object.fromEntries(Object.entries(SV.fleetT).map(([k, v]) => [k, v.now])); for (const m of SV.rb.moves) { SV.size[m.from]--; SV.size[m.to]++; } drawFleet(); $('sv-fleet-s').innerHTML += '<br>' + (SV.rb.moves.map(m => `Move a truck ${m.from} to ${m.to}: saves ${fmt$(m.gain)}/week`).join('<br>') || 'Trucks are already where they save most.'); };
@@ -815,7 +995,7 @@ $('sv-reset').onclick = () => { SV.size = Object.fromEntries(Object.entries(SV.f
 
 // ---------- planner stress test (same code as node app/stress.js) ----------
 let stRes = [], stRun = 0;
-const MIX = [['trucks', 'trucks only', '#4a9fe0'], ['shut', 'switch off wells', '#f08a2c'], ['both', 'trucks + wells', '#4fae5c'], ['accept', 'accept shutdown (cheapest)', '#f6c445'], ['none', 'no action needed', '#c9bd9e']];
+const MIX = [['trucks', 'trucks only', '#3a7fb0'], ['shut', 'switch off wells', '#e3611c'], ['both', 'trucks + wells', '#2d8f74'], ['accept', 'accept shutdown (cheapest)', '#d9980f'], ['none', 'no action needed', '#c9c6bd']];
 $('st-run').onclick = () => {
   const my = ++stRun, N = +$('st-n').value, gen = Stress.cases(Model, N, { sabotage: $('st-sab').checked }), total = N + Math.round(N / 5);
   stRes = []; $('st-grid').innerHTML = ''; $('st-detail').innerHTML = ''; $('st-feed').tBodies[0].innerHTML = ''; $('st-run').textContent = 'Running…';
@@ -839,9 +1019,9 @@ function feedRows(rs) {
   const tb = $('st-feed').tBodies[0];
   for (const r of rs) {
     const tr = document.createElement('tr'); tr.className = 'new'; tr.style.cursor = 'pointer';
-    const mark = r.ok ? '<b style="color:var(--good)">✓</b>' : '<b style="color:var(--critical)">✕</b>';
+    const mark = r.ok ? '<b style="color:var(--mint)">✓</b>' : '<b style="color:var(--red)">✕</b>';
     tr.innerHTML = r.kind === 'single'
-      ? `<td>${r.i + 1}</td><td>${r.sc.fac.cap}</td><td>${r.sc.level.toFixed(0)}%</td><td>${(r.sc.inflowBpd / 24).toFixed(0)}</td><td>${Math.floor(r.sc.H / 60)}h${String(r.sc.H % 60).padStart(2, '0')}</td><td>${r.F}</td><td class="pl" title="${r.plan.label}">${r.plan.label}</td><td>${fmt$(r.ours)}</td><td>${fmt$(r.brute)}</td><td>${mark}</td>`
+      ? `<td>${r.i + 1}</td><td>${r.sc.fac.cap}</td><td>${r.sc.level.toFixed(0)}%</td><td>${(r.sc.inflowBpd / 24).toFixed(0)}</td><td>${Math.floor(r.sc.H / 60)}h${String(r.sc.H % 60).padStart(2, '0')}</td><td>${r.F}</td><td class="pl" title="${esc(r.plan.label)}">${esc(r.plan.label)}</td><td>${fmt$(r.ours)}</td><td>${fmt$(r.brute)}</td><td>${mark}</td>`
       : `<td>S${r.i + 1}</td><td colspan="4">${r.items.length} tanks sharing trucks</td><td>${r.F}</td><td class="pl">${r.joint.map(x => x.plan.trucks ? x.plan.trucks + ' truck' + (x.plan.trucks > 1 ? 's' : '') : x.plan.actions[0].type === 'shut_in_wells' ? 'wells' : '–').join(' · ')}</td><td>${fmt$(r.ours)}</td><td>${fmt$(r.brute)}</td><td>${mark}</td>`;
     tr.onclick = () => { showCase(r, false); const sq = $('st-grid').children[stRes.indexOf(r)]; sq?.click(); };
     tb.prepend(tr);
@@ -854,13 +1034,13 @@ function showCase(r, animate) {
   const c = $('st-canvas'), dpr = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
   if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
   const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
-  x.font = '800 11px Nunito, sans-serif';
+  x.font = '500 11px Geologica, sans-serif';
   if (r.kind !== 'single') {
     $('st-now-h').textContent = `Now testing · shared-fleet system ${r.i + 1}`;
     const mx = Math.max(...r.joint.map(j => j.doNothing.cost), 1);
     r.joint.forEach((j, k) => { const y = 20 + k * 38; x.fillStyle = css('--ink-2'); x.fillText(`Tank ${k + 1}`, 10, y + 14);
-      x.fillStyle = css('--critical'); x.fillRect(70, y, (w - 90) * j.doNothing.cost / mx, 12); x.fillStyle = css('--s1'); x.fillRect(70, y + 14, Math.max(2, (w - 90) * j.plan.cost / mx), 12); });
-    $('st-now-t').innerHTML = `<b>${r.items.length} tanks</b> fail together and share <b>${r.F} truck${r.F === 1 ? '' : 's'}</b> · red bar = cost if nobody acts, blue = our joint plan<br>Our joint total <b>${fmt$(r.ours)}</b> · brute force tried every truck split: <b>${fmt$(r.brute)}</b> ${r.ok ? '<b style="color:var(--good)">✓ same</b>' : '<b style="color:var(--critical)">✕ different</b>'}`;
+      x.fillStyle = css('--red'); x.fillRect(70, y, (w - 90) * j.doNothing.cost / mx, 12); x.fillStyle = css('--water'); x.fillRect(70, y + 14, Math.max(2, (w - 90) * j.plan.cost / mx), 12); });
+    $('st-now-t').innerHTML = `<b>${r.items.length} tanks</b> fail together and share <b>${r.F} truck${r.F === 1 ? '' : 's'}</b> · red bar = cost if nobody acts, blue = our joint plan<br>Our joint total <b>${fmt$(r.ours)}</b> · brute force tried every truck split: <b>${fmt$(r.brute)}</b> ${r.ok ? '<b style="color:var(--mint)">✓ same</b>' : '<b style="color:var(--red)">✕ different</b>'}`;
     return;
   }
   const sc = r.sc, H = sc.H, pad = 34, dn = [], ours = [], tr = r.plan.actions.find(a => a.type === 'dispatch_truck'), sh = r.plan.actions.find(a => a.type === 'shut_in_wells');
@@ -868,18 +1048,18 @@ function showCase(r, animate) {
   Stress.simSafe(sc, tr ? tr.trucks : 0, tr ? tr.trips_per_truck : 0, sh ? sc.wells.filter(wl => sh.wells.includes(wl.id)) : [], sh ? sh.start_after_min : Infinity, ours);
   const lo = Math.max(0, Math.floor((Math.min(sc.level, ...ours) - 5) / 10) * 10); // zoom to this case's levels
   const X = m => pad + m / H * (w - pad - 10), Y = v => 8 + (100 - v) / (100 - lo) * (h - 28);
-  x.strokeStyle = css('--grid'); x.fillStyle = css('--muted');
+  x.strokeStyle = css('--line'); x.fillStyle = css('--ink-3');
   for (const v of [lo, Math.round((lo + 100) / 2), 100]) { x.beginPath(); x.moveTo(pad, Y(v)); x.lineTo(w - 10, Y(v)); x.stroke(); x.fillText(v + '%', 4, Y(v) + 4); }
   x.fillText('0', pad, h - 4); x.fillText(`${H} min (repair done)`, w - 110, h - 4);
-  x.setLineDash([5, 4]); x.strokeStyle = css('--critical'); x.beginPath(); x.moveTo(pad, Y(92)); x.lineTo(w - 10, Y(92)); x.stroke(); x.setLineDash([]);
-  const line = (pts, col, start) => { x.strokeStyle = col; x.lineWidth = 2; x.beginPath(); x.moveTo(X(0), Y(sc.level)); pts.forEach((v, m) => x.lineTo(X(m + 1), Y(v))); if (pts.length < H) { x.lineTo(X(H), Y(92)); } x.stroke(); x.lineWidth = 1; };
-  line(dn, css('--critical'));
-  if (r.plan.actions[0].type !== 'none') line(ours, css('--s1'));
-  if (sh) { x.strokeStyle = css('--warning'); x.setLineDash([2, 3]); x.beginPath(); x.moveTo(X(sh.start_after_min), 8); x.lineTo(X(sh.start_after_min), h - 20); x.stroke(); x.setLineDash([]); }
+  x.setLineDash([5, 4]); x.strokeStyle = css('--red'); x.beginPath(); x.moveTo(pad, Y(92)); x.lineTo(w - 10, Y(92)); x.stroke(); x.setLineDash([]);
+  const line = (pts, col) => { x.strokeStyle = col; x.lineWidth = 2; x.beginPath(); x.moveTo(X(0), Y(sc.level)); pts.forEach((v, m) => x.lineTo(X(m + 1), Y(v))); if (pts.length < H) { x.lineTo(X(H), Y(92)); } x.stroke(); x.lineWidth = 1; };
+  line(dn, css('--red'));
+  if (r.plan.actions[0].type !== 'none') line(ours, css('--water'));
+  if (sh) { x.strokeStyle = css('--amber'); x.setLineDash([2, 3]); x.beginPath(); x.moveTo(X(sh.start_after_min), 8); x.lineTo(X(sh.start_after_min), h - 20); x.stroke(); x.setLineDash([]); }
   if (tr) for (let j = 0; j < tr.trips_per_truck; j++) x.fillText('truck', X(sc.fac.resp + j * sc.fac.cycle) - 12, 20);
   $('st-now-h').textContent = `Now testing · emergency ${r.i + 1}`;
   const head = `Tank <b>${sc.fac.cap} bbl</b> at <b>${sc.level.toFixed(0)}%</b> · fills ${(sc.inflowBpd / 24).toFixed(0)} bbl/h · repair in <b>${H} min</b> · ${sc.wells.length} well${sc.wells.length > 1 ? 's' : ''} · <b>${r.F}</b> truck${r.F === 1 ? '' : 's'} free`;
-  const tail = `Our plan: <b>${r.plan.label}</b> = <b>${fmt$(r.ours)}</b> (${(r.tModel * 1000).toFixed(0)} µs) · brute force best <b>${fmt$(r.brute)}</b> ${r.ok ? '<b style="color:var(--good)">✓ same</b>' : '<b style="color:var(--critical)">✕ different</b>'}`;
+  const tail = `Our plan: <b>${esc(r.plan.label)}</b> = <b>${fmt$(r.ours)}</b> (${(r.tModel * 1000).toFixed(0)} µs) · brute force best <b>${fmt$(r.brute)}</b> ${r.ok ? '<b style="color:var(--mint)">✓ same</b>' : '<b style="color:var(--red)">✕ different</b>'}`;
   if (!animate) { $('st-now-t').innerHTML = `${head}<br>Brute force checked <b>${r.checked.toLocaleString()}</b> plans · ${tail}`; return; }
   const t0 = performance.now();
   (function count() { const p = Math.min(1, (performance.now() - t0) / 200);
@@ -890,40 +1070,41 @@ function drawStress(done, ms) {
   const S = Stress.summarize(stRes), n = Math.max(1, S.singles);
   const pass = S.bad + S.jbad === 0;
   $('st-stats').innerHTML = `
-    <div><small>Single-tank emergencies</small><b style="color:${S.bad ? 'var(--critical)' : 'var(--good)'}">${S.bad ? '✕ ' + S.bad + ' mismatches' : '✓ ' + S.singles.toLocaleString() + ' match'}</b><small>worst cost gap $${S.worst.toFixed(2)} · ${S.unsafe} unsafe</small></div>
-    <div><small>Shared-fleet systems</small><b style="color:${S.jbad ? 'var(--critical)' : 'var(--good)'}">${S.jbad ? '✕ ' + S.jbad + ' mismatches' : '✓ ' + S.joints.toLocaleString() + ' match'}</b><small>2–4 tanks fighting for 1–3 trucks</small></div>
+    <div><small>Single-tank emergencies</small><b style="color:${S.bad ? 'var(--red)' : 'var(--mint)'}">${S.bad ? '✕ ' + S.bad + ' mismatches' : '✓ ' + S.singles.toLocaleString() + ' match'}</b><small>worst cost gap $${S.worst.toFixed(2)} · ${S.unsafe} unsafe</small></div>
+    <div><small>Shared-fleet systems</small><b style="color:${S.jbad ? 'var(--red)' : 'var(--mint)'}">${S.jbad ? '✕ ' + S.jbad + ' mismatches' : '✓ ' + S.joints.toLocaleString() + ' match'}</b><small>2–4 tanks fighting for 1–3 trucks</small></div>
     <div><small>Speed per emergency</small><b>${(S.msModel * 1000).toFixed(0)} µs</b><small>vs brute force ${S.msBrute.toFixed(2)} ms (${(S.msBrute / Math.max(S.msModel, 1e-6)).toFixed(0)}× slower)</small></div>
     <div><small>What the cheapest plan was</small><div class="mix">${MIX.map(([k, , c]) => S.mix[k] ? `<span style="width:${100 * S.mix[k] / n}%;background:${c}" title="${k}"></span>` : '').join('')}</div>
       <small>${MIX.filter(([k]) => S.mix[k]).map(([k, l, c]) => `<span style="color:${c}">■</span> ${l} ${S.mix[k]}`).join(' · ')}</small></div>`;
-  if (done) $('st-status').innerHTML = `<b style="color:${pass ? 'var(--good)' : 'var(--critical)'}">${pass ? 'PASSED' : 'FAILED'}</b> · ${stRes.length.toLocaleString()} cases in ${(ms / 1000).toFixed(1)} s${$('st-sab').checked ? ' · planner was sabotaged on purpose' : ''}`;
+  if (done) $('st-status').innerHTML = `<b style="color:${pass ? 'var(--mint)' : 'var(--red)'}">${pass ? 'PASSED' : 'FAILED'}</b> · ${stRes.length.toLocaleString()} cases in ${(ms / 1000).toFixed(1)} s${$('st-sab').checked ? ' · planner was sabotaged on purpose' : ''}`;
 }
 $('st-grid').onclick = e => {
   const k = e.target.dataset.k; if (k == null) return;
   $('st-grid').querySelectorAll('.sel').forEach(x => x.classList.remove('sel')); e.target.classList.add('sel');
-  const r = stRes[k], mark = r.ok ? '<b style="color:var(--good)">✓ match</b>' : '<b style="color:var(--critical)">✕ mismatch</b>';
+  const r = stRes[k], mark = r.ok ? '<b style="color:var(--mint)">✓ match</b>' : '<b style="color:var(--red)">✕ mismatch</b>';
   if (r.kind === 'single') {
     const sc = r.sc, tTrip = (0.92 * sc.fac.cap - sc.level / 100 * sc.fac.cap) / (sc.inflowBpd / 1440);
     $('st-detail').innerHTML = `${mark} · Tank <b>${sc.fac.cap} bbl</b> at <b>${sc.level.toFixed(1)}%</b>, filling ${(sc.inflowBpd / 24).toFixed(0)} bbl/h → overflows in ${Math.round(tTrip)} min, repair in <b>${sc.H} min</b> · ${sc.wells.length} well${sc.wells.length > 1 ? 's' : ''} · <b>${r.F}</b> truck${r.F === 1 ? '' : 's'} free (arrive ${sc.fac.resp} min, back every ${sc.fac.cycle} min)<br>
-      Our plan: <b>${r.plan.label}</b> = <b>${fmt$(r.ours)}</b> · brute force best: <b>${fmt$(r.brute)}</b> after checking ${r.checked.toLocaleString()} plans · our plan re-simulated: ${r.safe ? 'tank stays safe' : '<b style="color:var(--critical)">tank overflows</b>'}`;
+      Our plan: <b>${esc(r.plan.label)}</b> = <b>${fmt$(r.ours)}</b> · brute force best: <b>${fmt$(r.brute)}</b> after checking ${r.checked.toLocaleString()} plans · our plan re-simulated: ${r.safe ? 'tank stays safe' : '<b style="color:var(--red)">tank overflows</b>'}`;
   } else {
     $('st-detail').innerHTML = `${mark} · <b>${r.items.length} failing tanks</b> share <b>${r.F} truck${r.F === 1 ? '' : 's'}</b><br>
-      ${r.joint.map((x, j) => `Tank ${j + 1}: ${x.plan.label} (${fmt$(x.plan.cost)})`).join(' · ')}<br>Our joint total <b>${fmt$(r.ours)}</b> · brute force best split <b>${fmt$(r.brute)}</b>`;
+      ${r.joint.map((x, j) => `Tank ${j + 1}: ${esc(x.plan.label)} (${fmt$(x.plan.cost)})`).join(' · ')}<br>Our joint total <b>${fmt$(r.ours)}</b> · brute force best split <b>${fmt$(r.brute)}</b>`;
   }
 };
 
-// ---------- glass box log + export ----------
+// ---------- event log + export ----------
 function renderLog() {
   $('log').innerHTML = rep.engine.events.slice().reverse().map(e => {
     const p = rep.plans.get(e.event_id);
-    return `<div><b>${fmtT(e.detected_unix)}</b> ${CAT[e.category]} · ${e.facility_id} · onset ${fmtT(e.onset_unix)} · ${e.status === 'ongoing' ? '<span class="tag critical">ONGOING</span>' : 'resolved ' + fmtT(e.end_unix)}
-      <div class="muted">${p ? `plan at detection: ${p.plan.label} ${fmt$(p.plan.cost)} vs do nothing ${fmt$(p.doNothing.cost)} (${p.freeTrucks} trucks free)` : e.evidence.join(' · ')}</div></div>`;
-  }).join('') || '<div class="muted">No events yet.</div>';
+    return `<div><span class="mono muted">${fmtT(e.detected_unix)}</span> <b>${CAT[e.category]}</b> · ${e.facility_id} · onset ${fmtT(e.onset_unix)} · ${e.status === 'ongoing' ? '<span class="chip critical">ONGOING</span>' : 'resolved ' + fmtT(e.end_unix)}
+      <div class="muted" style="margin-top:3px">${p ? `plan at detection: ${esc(p.plan.label)} ${fmt$(p.plan.cost)} vs do nothing ${fmt$(p.doNothing.cost)} (${p.freeTrucks} trucks free)` : e.evidence.map(esc).join(' · ')}</div></div>`;
+  }).join('') || '<div class="empty">No events yet.</div>';
 }
 $('export').onclick = () => {
   const blob = new Blob([JSON.stringify(Model.exportEvents(ds, rep.engine, i), null, 2)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'events.json'; a.click();
 };
 addEventListener('resize', () => ds && render());
+addEventListener('hashchange', () => { const v = location.hash.replace('#', ''); if (v in TITLES && v !== view) showView(v); });
 
 const qd = new URLSearchParams(location.search).get('d'); // ?d=history/full_week deep-links a dataset
 if (qd) $('dataset').value = qd;
