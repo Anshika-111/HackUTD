@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claim alert</title>
+<style>
+  :root { --bg: #0f1216; --card: #171c23; --ink: #e8edf2; --muted: #8a97a6; --critical: #ff5a5a; --high: #ffa726; --low: #ffd54f; --good: #4cd98a; --line: #2a323c; }
+  @media (prefers-color-scheme: light) { :root { --bg: #f4f6f8; --card: #fff; --ink: #141a21; --muted: #5e6b79; --line: #e1e6ec; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.4 -apple-system, system-ui, Segoe UI, Roboto, sans-serif; padding: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .sev { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; color: #000; }
+  .critical { background: var(--critical); } .high { background: var(--high); } .low { background: var(--low); } .ok { background: var(--good); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .big { font-size: 28px; font-weight: 700; margin: 6px 0; }
+  button { width: 100%; font: inherit; font-weight: 700; padding: 16px; border-radius: 12px; border: 0; margin-top: 10px; color: #000; background: var(--good); }
+  button.secondary { background: var(--line); color: var(--ink); }
+  button:disabled { opacity: .5; }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15px; }
+  .row:first-child { border-top: 0; }
+  .result { font-size: 18px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="app"><div class="card">Loading…</div></div>
+<script>
+const token = location.pathname.split('/').pop();
+const qs = new URLSearchParams(location.search);
+let view = null, result = null, acted = false;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = v => '$' + Math.round(v || 0).toLocaleString();
+const hhmm = ts => ts ? ts.slice(11, 16) : '–';
+
+async function load() {
+  try { const r = await fetch('/api/alert/' + token, { cache: 'no-store' }); view = r.ok ? await r.json() : { error: (await r.json()).error }; }
+  catch (e) { view = { error: 'No connection to the control server.' }; }
+  render();
+}
+async function act(action) {
+  acted = true;
+  const r = await fetch('/api/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, action }) });
+  result = await r.json(); await load();
+}
+// The page checks in every 60 s while open, so the system can skip people who have lost signal.
+setInterval(() => fetch('/api/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }) }).catch(() => {}), 60000);
+setInterval(load, 10000); // old notifications always show the alert's current state
+
+function render() {
+  const el = $('#app');
+  if (!view || view.error) { el.innerHTML = `<div class="card"><h1>Link not valid</h1><div class="muted">${esc(view && view.error)}</div></div>`; return; }
+  const a = view.alert, j = view.job, t = view.task, q = view.queue;
+  const head = (title, sev, sub) => `<h1>${esc(title)}</h1><span class="sev ${sev}">${esc(sev.toUpperCase())}</span> <span class="muted">${esc(sub)}</span>`;
+  let h = '', btns = '';
+  const stateLine = s => ({ awaiting_approval: 'Waiting for approval', awaiting_claim: 'Nobody has claimed this yet', claimed: 'Claimed', approved: 'Approved', in_progress: 'Plan in progress', awaiting_confirmation: 'Pump is off: leak status unknown until it runs again', resolved: 'Resolved', no_action_needed: 'No action needed', inspection_queued: 'In the inspection queue', watching: 'Watching' }[s] || s);
+  if (view.kind === 'alert' && a) {
+    const open = a.state === 'awaiting_approval' || a.state === 'awaiting_claim';
+    h += `<div class="card">${head(`${a.category.replace('_', ' ')} · ${a.facility_id}`, a.state === 'resolved' ? 'ok' : a.severity, `replay time ${hhmm(view.now_ts)} UTC`)}
+      <div class="big">${esc(stateLine(a.state))}${a.claimed_by ? ` · ${esc(a.claimed_by)}` : ''}</div>`;
+    if (a.category === 'pump_failure') {
+      h += `<div class="row"><span>Shutdown</span><b>${a.hours_to_limit && a.hours_to_limit.p50 != null ? Math.round(a.hours_to_limit.p50 * 60) + ' min' : '–'}</b></div>
+        <div class="row"><span>Approve by</span><b>${hhmm(a.approve_by_ts)}${a.minutes_to_approve != null ? ` (${a.minutes_to_approve} min)` : ''}</b></div>
+        <div class="row"><span>Plan</span><b>${esc((a.approved_plan || a.plan).label)}</b></div>
+        <div class="row"><span>Cost</span><b>${money((a.approved_plan || a.plan).cost)}</b></div>
+        <div class="row"><span>If missed</span><b>${a.fallback ? esc(a.fallback.label) + ' · ' + money(a.fallback.cost) : '–'}</b></div>`;
+    } else h += `<div class="muted">${esc((a.evidence || []).join(' · '))}</div>`;
+    h += '</div>';
+    if (open && !acted) btns = `<button onclick="act('claim')">${a.category === 'pump_failure' ? 'Approve this plan' : 'I’ll take it'}</button><button class="secondary" onclick="act('decline')">Can’t</button><button class="secondary" onclick="act('ack')">Acknowledge, stop re-pinging</button>`;
+  } else if (view.kind === 'job' && j) {
+    const open = j.state === 'open';
+    h += `<div class="card">${head(`Truck to ${j.facility_id}`, open ? 'high' : 'ok', `replay time ${hhmm(view.now_ts)} UTC`)}
+      <div class="big">${open ? `${j.trucks - j.claims.length} of ${j.trucks} truck${j.trucks > 1 ? 's' : ''} still needed` : j.state === 'covered' || j.state === 'done' ? 'Covered, stand down' : 'Plan changed: trucks no longer needed'}</div>
+      <div class="row"><span>Trips</span><b>${j.trips}</b></div><div class="row"><span>Leave by</span><b>${hhmm(new Date(j.claim_by_unix * 1000).toISOString())}</b></div>
+      ${a ? `<div class="row"><span>Shutdown</span><b>${a.hours_to_limit && a.hours_to_limit.p50 != null ? Math.round(a.hours_to_limit.p50 * 60) + ' min' : '–'}</b></div>` : ''}
+      <div class="muted">Claimed by: ${esc(j.claims.join(', ') || 'nobody yet')}</div></div>`;
+    if (open && !acted) btns = `<button onclick="act('claim')">Claim this truck</button><button class="secondary" onclick="act('decline')">Can’t</button>`;
+  } else if (view.kind === 'task' && t) {
+    h += `<div class="card">${head(`Shut in ${t.wells.join(', ')}`, t.state === 'done' ? 'ok' : 'critical', `${t.facility_id} · due ${hhmm(t.due_ts)} UTC`)}
+      <div class="big">${t.state === 'done' ? 'Done' : t.state === 'due' ? 'Do it now' : 'Scheduled'}</div></div>`;
+    if (t.state !== 'done' && !acted) btns = `<button onclick="act('done')">Wells are shut in</button>`;
+  } else if (view.kind === 'queue' && q) {
+    h += `<div class="card">${head(`Inspect ${q.asset_id}`, q.state === 'done' ? 'ok' : 'low', `by ${hhmm(q.deadline_ts)} UTC`)}<div class="big">${esc(q.state)}</div><div class="muted">${esc(q.reason)}</div></div>`;
+    if (q.state === 'queued' && !acted) btns = `<button onclick="act('claim')">Take this inspection</button>`;
+    else if (q.state === 'assigned' && !acted) btns = `<button onclick="act('done')">Inspected</button>`;
+  } else h += `<div class="card"><h1>${esc(view.kind)}</h1></div>`;
+  if (result) h += `<div class="card result">${result.ok ? ({ approved: '✅ Approved. Trucks and shut-ins are being routed.', claimed: '✅ You have it.', covered: '🟢 Covered by someone else. Stand down.', declined: 'Noted. It goes to the next person.', done: '✅ Done.' }[result.result] || result.result) : '⚠ ' + esc(result.error)}${result.note ? `<div class="muted">${esc(result.note)}</div>` : ''}</div>`;
+  el.innerHTML = h + btns + `<div class="muted" style="margin-top:14px">Signed in as ${esc(view.person)} · this page checks in every minute while open</div>`;
+}
+load().then(() => { const d = qs.get('do'); if (d && !acted && view && !view.error) act(d); });
+</script>
+</body>
+</html>

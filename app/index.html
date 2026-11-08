@@ -13,6 +13,22 @@
     --s1: #3987e5; --s2: #d95926;
     --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
   }
+  .field { grid-column: 1 / -1; }
+  .fgrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .fgrid h3 { font-size: 13px; margin: 0 0 6px; color: var(--ink-2); }
+  .frow { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--ring); font-size: 13px; }
+  .frow:first-of-type { border-top: 0; }
+  .frow .who { min-width: 0; }
+  .frow small { color: var(--muted); display: block; }
+  .pill { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: #000; background: var(--muted); white-space: nowrap; }
+  .pill.critical { background: var(--critical); color: #fff; } .pill.high { background: var(--serious); } .pill.low { background: var(--warning); } .pill.ok { background: var(--good); color: #fff; } .pill.wait { background: var(--s1); color: #fff; }
+  .mini { font-size: 12px; padding: 3px 8px; }
+  #f-people, #f-alerts, #f-work { max-height: 300px; overflow: auto; }
+  .audit { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 220px; overflow: auto; color: var(--ink-2); }
+  .audit b { color: var(--ink); }
+  .hold { background: var(--s1); color: #fff; border-radius: 6px; padding: 6px 10px; font-weight: 600; display: none; }
+  .hold.on { display: inline-block; }
+  .off { opacity: .5; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
   header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--ring); position: sticky; top: 0; background: var(--page); z-index: 5; }
@@ -120,6 +136,7 @@
   </select>
   <input id="slider" type="range" min="0" max="0" value="0" aria-label="Time travel">
   <span id="clock">no data</span>
+  <span id="hold" class="hold">⏸ holding for a decision</span>
 </header>
 
 <main id="app" hidden>
@@ -143,6 +160,22 @@
   <section class="card">
     <h2>Alerts · if you act now</h2>
     <div class="alerts" id="alerts"></div>
+  </section>
+
+  <section class="card field" id="field" hidden>
+    <h2>Field alerts · who is on it
+      <span style="float:right;font-weight:400;text-transform:none;letter-spacing:0">
+        <label class="ink2"><input type="checkbox" id="f-pause" checked> hold the replay while someone must decide</label>
+        <button id="f-audit" class="mini" style="margin-left:8px">Export audit.json</button>
+      </span>
+    </h2>
+    <div class="ink2" id="f-phone" style="margin-bottom:8px"></div>
+    <div class="fgrid">
+      <div><h3>Open alerts</h3><div id="f-alerts"></div></div>
+      <div><h3>People · buzzed this shift · simulated roles act here</h3><div id="f-people"></div></div>
+      <div><h3>Trucks, shut-ins, inspections</h3><div id="f-work"></div></div>
+      <div><h3>Audit trail · <span id="f-audit-n" class="muted"></span></h3><div class="audit" id="f-log"></div><div id="f-handoff" class="ink2" style="margin-top:6px"></div></div>
+    </div>
   </section>
 
   <section class="card charts">
@@ -220,7 +253,7 @@ async function loadFromUrl(folder) {
   const [n, o, t] = await Promise.all([get('network.json'), get('ops.json'), get('telemetry.csv')]);
   start(n, o, t, folder);
 }
-$('dataset').onchange = e => loadFromUrl(e.target.value).catch(err => alert('Could not fetch dataset (' + err.message + '). Serve the hack-utd folder over http, or use Open folder.'));
+$('dataset').onchange = e => SRV ? srvPost('/api/dataset', { folder: e.target.value }) : loadFromUrl(e.target.value).catch(err => alert('Could not fetch dataset (' + err.message + '). Serve the hack-utd folder over http, or use Open folder.'));
 $('folder').onchange = async e => {
   const files = [...e.target.files], pick = n => files.find(f => f.name === n);
   if (!pick('network.json') || !pick('ops.json') || !pick('telemetry.csv')) return alert('That folder needs network.json, ops.json and telemetry.csv');
@@ -242,7 +275,7 @@ function start(netTxt, opsTxt, telTxt, name) {
   $('app').hidden = false; $('drop').hidden = true;
   sel = sel && ds.facs.some(f => f.id === sel) ? sel : ds.facs[0].id;
   document.title = 'Glass Box · ' + name;
-  seek(ds.tel.n - 1); // open at "now" = last reading, the judging view
+  seek(SRV && FS ? FS.i : ds.tel.n - 1); // open at "now" = last reading (the judging view), or where the server clock is
   const first = Model.alertsAt(ds, rep.engine, i).failures[0]; if (first) { sel = first.fac.id; render(); }
 }
 
@@ -252,6 +285,71 @@ function seek(t) {
   for (let j = 0; j <= t; j++) rep.step(j);
   i = t; render();
 }
+
+// ---------- server mode: the alert server owns the replay clock ----------
+// The page still runs the model locally for the map and charts (same code, same answers); it follows the
+// server's tick and shows the server's alert state. Without the server (file:// or python http.server) it
+// works as before, minus the field panel.
+let SRV = null, FS = null, syncing = false;
+async function serverSync() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' }); if (!r.ok) throw 0;
+    FS = await r.json(); SRV = true;
+  } catch { SRV = false; $('field').hidden = true; return; }
+  $('field').hidden = false; $('hold').classList.toggle('on', FS.waiting && FS.playing);
+  if (!ds || FS.dataset !== curFolder) { if (!syncing) { syncing = true; curFolder = FS.dataset; $('dataset').value = FS.dataset; await loadFromUrl(FS.dataset).catch(() => {}); syncing = false; } return; }
+  playing = FS.playing; $('play').textContent = playing ? '❚❚ Pause' : '▶ Replay'; $('speed').value = String(FS.speed);
+  if (FS.i !== i) { if (FS.i > i && FS.i - i < 400) { while (i < FS.i) rep.step(++i); render(); } else seek(FS.i); }
+  else renderField();
+}
+let curFolder = null;
+const srvPost = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(() => serverSync());
+setInterval(() => { if (SRV !== false) serverSync(); }, 500);
+
+const STATE = { awaiting_approval: ['waiting for approval', 'wait'], awaiting_claim: ['nobody on it yet', 'wait'], claimed: ['claimed', 'ok'], approved: ['approved', 'ok'], in_progress: ['plan in progress', 'ok'], awaiting_confirmation: ['pump off · leak end unconfirmed', 'low'], resolved: ['resolved', 'ok'], no_action_needed: ['no action needed', 'ok'], inspection_queued: ['inspection queued', 'low'], watching: ['watching', 'low'], inspected: ['inspected', 'ok'] };
+const hm = ts => ts ? ts.slice(11, 16) : '–';
+// The real phone acts through its push links. For a demo without the phone, the same links open here.
+function phoneLinks(personId) {
+  const seen = new Set(), out = [];
+  for (const m of FS.pushes.slice().reverse()) { if (m.to !== personId || !m.url || seen.has(m.url) || m.kind === 'handoff' || (m.tags || []).some(t => ['resolved', 'covered'].includes(t))) continue; seen.add(m.url); if (out.length < 3) out.push(`<a class="mini" style="text-decoration:none;border:1px solid var(--ring);border-radius:6px;padding:3px 8px" href="${m.url}" target="_blank" title="${m.title}">📱 ${m.title.replace(/^\S+\s/, '').slice(0, 28)}</a>`); }
+  return out.join('');
+}
+let fieldKey = '';
+function renderField() {
+  if (!FS) return;
+  // Re-render only when something changed, so buttons are not rebuilt under the user's finger every 500 ms.
+  const { i: _i, now: _n, now_ts: _t, totals: _T, ...rest } = FS; const key = JSON.stringify(rest);
+  if (key === fieldKey) return; fieldKey = key;
+  const ph = FS.real_phones.map(p => `<b>${p.id}</b> → ntfy topic <code>${p.topic}</code> (subscribe: ${p.subscribe})`).join(' · ');
+  $('f-phone').innerHTML = `${FS.dry_run ? '<span class="pill low">DRY RUN · pushes logged, not sent</span> ' : ''}${ph}. Claim links open at ${FS.public_url}. Everyone else is simulated below.`;
+  $('f-pause').checked = !!FS.waiting || $('f-pause').checked;
+  const open = FS.alerts.filter(a => a.state !== 'resolved');
+  $('f-alerts').innerHTML = open.map(a => {
+    const [txt, cls] = STATE[a.state] || [a.state, ''];
+    const plan = a.approved_plan || a.plan;
+    const by = a.category === 'pump_failure' && a.approve_by_ts ? ` · approve by <b>${hm(a.approve_by_ts)}</b>${a.minutes_to_approve != null ? ` (${a.minutes_to_approve} min)` : ''}` : '';
+    const miss = a.category === 'pump_failure' && a.fallback && a.state === 'awaiting_approval' ? `<small>miss it: ${a.fallback.label} · +${fmt$(a.fallback.cost - plan.cost)}</small>` : '';
+    const ladder = a.category === 'pump_failure' && a.state === 'awaiting_approval' && a.ladder && a.ladder.length > 1 ? `<small>money burning: ${a.ladder.filter((l, k) => k === 0 || l.atMin % 60 === 0 || k === a.ladder.length - 1).slice(0, 6).map(l => (l.atMin ? `+${l.atMin >= 60 ? (l.atMin / 60).toFixed(l.atMin % 60 ? 1 : 0) + ' h' : l.atMin + ' min'}` : 'now') + ' ' + fmt$(l.cost)).join(' → ')}</small>` : '';
+    const red = a.red && !a.claimed_by ? ' style="box-shadow: inset 3px 0 0 var(--critical)"' : '';
+    return `<div class="frow" data-f="${a.facility_id}"${red}><div class="who"><b>${a.facility_id}</b> ${CAT[a.category] || a.category}${by}<small>${plan ? plan.label + ' · ' + fmt$(plan.cost) : (a.evidence || []).slice(0, 2).join(' · ')}${a.claimed_by ? ' · ' + a.claimed_by : ''}${a.pinged && a.pinged.length && !a.claimed_by ? ' · pinged ' + a.pinged.join(', ') : ''}</small>${miss}${ladder}</div><div><span class="pill ${a.severity}">${a.severity}</span> <span class="pill ${a.red && !a.claimed_by ? 'critical' : cls}">${a.red && !a.claimed_by ? 'unclaimed · escalated' : txt}</span></div></div>`;
+  }).join('') || '<div class="muted">Nothing open.</div>';
+  $('f-alerts').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
+  $('f-people').innerHTML = FS.people.map(p => `<div class="frow ${p.reachable ? '' : 'off'}"><div class="who"><b>${p.name}</b> <small>${p.role.replace('_', ' ')}${p.system ? ' · ' + p.system : ''} · buzzed ${p.buzzed}×${p.busy ? ' · on a truck job' : ''}${p.virtual ? '' : ' · real phone'}</small></div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${p.virtual ? '' : phoneLinks(p.id)}${p.tokens.map(t => `<button class="mini primary" data-tok="${t.token}" data-act="${t.kind === 'task' ? 'done' : 'claim'}">${t.label}</button>${t.kind === 'alert' || t.kind === 'job' ? `<button class="mini" data-tok="${t.token}" data-act="decline">Can't</button>` : ''}`).join('')}
+    <button class="mini" data-person="${p.id}" data-on="${p.reachable ? 0 : 1}" title="simulate losing signal">${p.reachable ? '📶' : '📵 lost'}</button></div></div>`).join('');
+  $('f-people').querySelectorAll('[data-tok]').forEach(b => b.onclick = () => srvPost('/api/claim', { token: b.dataset.tok, action: b.dataset.act }));
+  $('f-people').querySelectorAll('[data-person]').forEach(b => b.onclick = () => srvPost('/api/person/' + b.dataset.person, { reachable: b.dataset.on === '1' }));
+  const work = [];
+  for (const j of FS.jobs.filter(j => j.state !== 'done')) work.push(`<div class="frow"><div class="who">🚚 <b>${j.facility_id}</b> ${j.trucks} truck${j.trucks > 1 ? 's' : ''} × ${j.trips} trip${j.trips > 1 ? 's' : ''}<small>${j.claims.length ? 'claimed by ' + j.claims.join(', ') : 'pinged ' + j.pinged.join(', ')} · leave by ${new Date(j.claim_by_unix * 1000).toISOString().slice(11, 16)}</small></div><span class="pill ${j.state === 'open' ? 'wait' : j.state === 'covered' ? 'ok' : 'low'}">${j.state === 'open' ? `${j.claims.length}/${j.trucks} claimed` : j.state}</span></div>`);
+  for (const t of FS.tasks.filter(t => t.state !== 'done')) work.push(`<div class="frow"><div class="who">🛢 <b>${t.facility_id}</b> shut in ${t.wells.join(', ')}<small>due ${hm(t.due_ts)} · owner ${t.owner}</small></div><span class="pill ${t.state === 'due' ? 'critical' : 'low'}">${t.state}</span></div>`);
+  for (const q of FS.queue.filter(q => q.state === 'queued' || q.state === 'assigned')) work.push(`<div class="frow"><div class="who">🔧 <b>${q.asset_id}</b> inspect by ${q.deadline_ts.slice(5, 16).replace('T', ' ')}<small>${q.reason}${q.owner ? ' · ' + q.owner : ''}</small></div><span class="pill low">${q.state}</span></div>`);
+  $('f-work').innerHTML = work.join('') || '<div class="muted">No trucks out, no shut-ins due, no inspections queued.</div>';
+  $('f-audit-n').textContent = `${FS.audit_total} entries`;
+  $('f-log').innerHTML = FS.audit.slice(-60).reverse().map(e => `<div>${e.ts_replay.slice(5, 16).replace('T', ' ')} <b>${e.action}</b> ${e.actor} ${e.ref || ''} <span class="muted">${e.detail || ''}</span></div>`).join('');
+  $('f-handoff').innerHTML = FS.handoff ? `<b>Last shift handoff ${hm(FS.handoff.at)}:</b> ${FS.handoff.lines.join(' · ')}` : '';
+}
+$('f-pause').onchange = e => srvPost('/api/replay', { pauseOnWait: e.target.checked });
+$('f-audit').onclick = () => { location.href = '/api/audit'; };
 
 // ---------- replay loop ----------
 let last = 0, carry = 0;
@@ -269,11 +367,13 @@ function frame(ts) {
 }
 function stop() { playing = false; $('play').textContent = '▶ Replay'; }
 $('play').onclick = () => {
+  if (SRV) return srvPost('/api/replay', { play: !playing });
   if (playing) return stop();
   if (i >= ds.tel.n - 1) seek(0);
   playing = true; last = 0; $('play').textContent = '❚❚ Pause'; requestAnimationFrame(frame);
 };
-$('slider').oninput = e => { stop(); seek(+e.target.value); };
+$('slider').oninput = e => { if (SRV) return srvPost('/api/replay', { seek: +e.target.value }); stop(); seek(+e.target.value); };
+$('speed').onchange = e => { if (SRV) srvPost('/api/replay', { speed: +e.target.value }); };
 
 // ---------- render ----------
 function render() {
@@ -289,6 +389,7 @@ function render() {
   renderMap(A, scores);
   renderCharts(A);
   renderLog();
+  renderField();
 }
 
 function renderKpis(A, planMs) {
@@ -326,6 +427,7 @@ function renderAlerts(A, scores) {
       <div class="bar" title="tank level"><i style="width:${Math.min(100, f.level)}%"></i><b style="left:${wr}%;background:var(--warning)"></b><b style="left:${sd}%;background:var(--critical)"></b></div>
       <div class="ink2">Tank ${f.level.toFixed(1)}% · filling ${f.ratePct.toFixed(1)}%/h · repair done in ${(f.H / 60).toFixed(1)} h · ${fmt$(f.lostRevPerHr)}/h at stake</div>
       <div style="margin-top:6px"><b>Do this:</b> ${f.plan.label} <b class="good-text">${fmt$(f.plan.cost)}</b></div>
+      ${(() => { const a = FS && FS.alerts.find(a => a.id === f.ev.event_id); if (!a) return ''; const [txt, cls] = STATE[a.state] || [a.state, '']; return `<div class="ink2" style="margin-top:4px"><span class="pill ${a.severity}">${a.severity}</span> <span class="pill ${cls}">${txt}</span>${a.approve_by_ts ? ` · approve by <b>${hm(a.approve_by_ts)}</b>` : ''}${a.fallback && a.state === 'awaiting_approval' ? ` · miss it and it's ${a.fallback.label} for ${fmt$(a.fallback.cost)}` : ''}${a.claimed_by ? ` · ${a.claimed_by}` : ''}${a.state === 'awaiting_approval' && a.ladder && a.ladder.length > 1 ? `<br>💸 waiting costs: ${a.ladder.filter((l, k) => k === 0 || l.atMin % 60 === 0 || k === a.ladder.length - 1).slice(0, 6).map(l => (l.atMin ? `+${l.atMin >= 60 ? (l.atMin / 60).toFixed(l.atMin % 60 ? 1 : 0) + ' h' : l.atMin + ' min'}` : 'now') + ' ' + fmt$(l.cost)).join(' → ')}` : ''}</div>`; })()}
       <table class="alt">${options.map(o => `<tr class="${o[2] === f.plan.label ? 'best' : ''}"><td>${o[0]}</td><td>${o[2]}</td><td>${fmt$(o[1])}</td></tr>`).join('')}</table>
     </div>`);
   }
@@ -611,7 +713,7 @@ addEventListener('resize', () => ds && render());
 
 const qd = new URLSearchParams(location.search).get('d'); // ?d=history/full_week deep-links a dataset
 if (qd) $('dataset').value = qd;
-if (location.protocol.startsWith('http')) loadFromUrl($('dataset').value).catch(() => {});
+if (location.protocol.startsWith('http')) serverSync().then(() => { if (!SRV) loadFromUrl($('dataset').value).catch(() => {}); });
 </script>
 </body>
 </html>

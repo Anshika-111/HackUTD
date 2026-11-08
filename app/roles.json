@@ -1,0 +1,14 @@
+{
+  "_comment": "Who gets buzzed. Drivers are generated from ops.json: one per emergency truck in each system. virtual=false means a real phone subscribed to an ntfy topic; virtual people live on the dashboard with their own Claim / Can't / Lost-signal buttons.",
+  "shifts": ["06:00", "18:00"],
+  "pauseOnWait": true,
+  "inspectionDeadlineHours": 24,
+  "criticalMin": 30,
+  "escalateMin": [2, 10],
+  "repingMin": 5,
+  "people": [
+    { "id": "control_room", "name": "Control room (your phone)", "virtual": false },
+    { "id": "backup_supervisor", "name": "Backup supervisor", "virtual": true },
+    { "id": "inspector", "name": "Inspection crew", "virtual": true }
+  ]
+}

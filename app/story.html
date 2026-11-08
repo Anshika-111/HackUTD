@@ -538,12 +538,13 @@ const scenes = [
     txt(1166, 390, 'GLASS BOX · FIELD CREW', { 'font-size': 12, fill: '#666', 'font-weight': 800 }, nt);
     txt(1166, 420, `🚚 Go to ${facJ.id.replace('_FACILITY_', ' · ')}`, { 'font-size': 18, fill: '#111', 'font-weight': 900 }, nt);
     txt(1166, 448, `Haul ${best.trips * ds.ops.emergency_trucking.truck_capacity_bbl} bbl. Arrive ${hm(ev.onset_unix + fac.resp * 60)}.`, { 'font-size': 15, fill: '#333' }, nt);
-    txt(1166, 476, '📳 urgent: long buzz ×3', { 'font-size': 14, fill: C.bad, 'font-weight': 700 }, nt);
+    txt(1166, 476, '📳 pushed via ntfy · mirrored to the watch', { 'font-size': 14, fill: C.bad, 'font-weight': 700 }, nt);
     ph.setAttribute('transform', 'translate(0 0)');
     if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
     bg(tween(900, p => ph.setAttribute('transform', `translate(${Math.sin(p * 40) * 6 * (1 - p)} 0)`)));
-    txt(1270, 560, 'Buzz pattern = how urgent', { 'text-anchor': 'middle', 'font-size': 15, fill: C.ink2 }, ph);
-    [['🔴 shutdown soon', 'long ×3'], ['🟠 inspect a leak', 'short ×2'], ['🟡 just watching', 'one tap']].forEach(([a, b], k) => { txt(1160, 600 + k * 34, a, { 'font-size': 15 }, ph); txt(1385, 600 + k * 34, b, { 'font-size': 14, fill: C.muted, 'text-anchor': 'end' }, ph); });
+    txt(1270, 560, 'Urgency is in the title, not the buzz', { 'text-anchor': 'middle', 'font-size': 15, fill: C.ink2 }, ph);
+    // The Garmin Venu 3S mirrors phone notifications with one vibration pattern; per-severity patterns need a native watch app (out of scope).
+    [['🔴 pump failure', 'approve by HH:MM'], ['🟠 leak', 'claim it'], ['🟡 worn pump', 'inspect by']].forEach(([a, b], k) => { txt(1160, 600 + k * 34, a, { 'font-size': 15 }, ph); txt(1385, 600 + k * 34, b, { 'font-size': 14, fill: C.muted, 'text-anchor': 'end' }, ph); });
     const eta = label(200, 820, '', { size: 18 });
     await tween(6000, p => {
       const m = p * fac.resp; tk.at(yx + (f.x - yx) * ease(p), yy + (f.y - yy) * ease(p));

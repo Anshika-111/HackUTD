@@ -353,6 +353,33 @@
     }
   }
 
+  // ---------- approve-by deadline ----------
+  // How long can the call wait before the cheapest plan stops working? Project the tank forward from the
+  // current estimates (no peeking at future telemetry): every 5 min the level rises by ratePct/12 and the
+  // repair window H shrinks by 5 min. The deadline is the last start time where the same plan (same trucks,
+  // trips and wells) is still feasible. Past it, the planner's next-cheapest plan is the fallback.
+  // Also returns a ladder (cost of acting at each later start) for the "money burning" display.
+  function approveBy(ds, fsx0, maxTrucks) {
+    const same = (a, b) => a.trucks === b.trucks && (a.trips || 0) === (b.trips || 0)
+      && JSON.stringify((a.actions.find(x => x.type === 'shut_in_wells') || {}).wells || []) === JSON.stringify((b.actions.find(x => x.type === 'shut_in_wells') || {}).wells || []);
+    const t0 = planOne(ds, fsx0, maxTrucks), P0 = t0.best[maxTrucks];
+    const out = { plan: P0, deadlineMin: null, fallback: null, costIfMissed: 0, ladder: [{ atMin: 0, cost: P0.cost, label: P0.label }] };
+    if (fsx0.tripped || P0 === t0.doNothing) return out; // nothing to approve
+    let k = 0, last = P0;
+    for (k = 1; k * 5 < fsx0.H; k++) {
+      const fs = { ...fsx0, level: fsx0.level + fsx0.ratePct * k * 5 / 60, H: fsx0.H - k * 5 };
+      const t = planOne(ds, fs, maxTrucks), P = t.best[maxTrucks];
+      if (k % 6 === 0 || !same(P, P0)) out.ladder.push({ atMin: k * 5, cost: P.cost, label: P.label });
+      if (!same(P, P0)) { out.fallback = P; break; }
+      last = P;
+    }
+    out.deadlineMin = (k - 1) * 5;            // last 5-min tick where the plan still works
+    if (!out.fallback) out.fallback = last;    // plan held until the repair ends
+    out.costIfMissed = Math.max(0, out.fallback.cost - P0.cost);
+    out.truckPossible = t0.best.some(p => p.trucks > 0);
+    return out;
+  }
+
   // Export shape from SPEC.md events.json
   function exportEvents(ds, engine, i) {
     const a = alertsAt(ds, engine, i), byId = new Map(a.failures.map(f => [f.ev.event_id, f]));
@@ -365,6 +392,6 @@
     });
   }
 
-  const api = { STEP, CAL, parseTelemetry, loadDataset, noiseOf, createEngine, failureState, planOne, planSystem, alertsAt, exportEvents, createReplay, weekReplay, maintenanceValue, fleetWhatIf, rebalance };
+  const api = { STEP, CAL, parseTelemetry, loadDataset, noiseOf, createEngine, failureState, planOne, planSystem, approveBy, alertsAt, exportEvents, createReplay, weekReplay, maintenanceValue, fleetWhatIf, rebalance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Model = api;
 })(typeof window !== 'undefined' ? window : globalThis);
