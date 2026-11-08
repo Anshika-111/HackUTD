@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glass Box · How it works</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0b1020; color: #f2f4f8; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #world { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  header { position: fixed; top: 0; left: 0; right: 0; padding: 2.2vh 3vw 0; pointer-events: none; z-index: 3; }
+  .step { font-size: clamp(11px, 1.05vw, 15px); font-weight: 800; letter-spacing: .12em; color: #ffcc33; }
+  h1 { margin: .6vh 0 0; font-size: clamp(22px, 2.9vw, 46px); line-height: 1.1; max-width: 70vw; }
+  .sub { margin: 1vh 0 0; font-size: clamp(14px, 1.35vw, 22px); color: #b7c0d4; max-width: 62vw; line-height: 1.4; }
+  .sub b, h1 b { color: #ffcc33; }
+  .fade { animation: fade .5s both; } @keyframes fade { from { opacity: 0; transform: translateY(8px); } }
+  .dots { position: fixed; top: 2.4vh; right: 3vw; display: flex; gap: 6px; z-index: 4; }
+  .dots button { width: 34px; height: 6px; border: 0; border-radius: 3px; background: #2a3350; cursor: pointer; padding: 0; }
+  .dots button.done { background: #5b6a92; } .dots button.on { background: #ffcc33; }
+  footer { position: fixed; left: 0; right: 0; bottom: 2.4vh; display: flex; justify-content: center; gap: 10px; z-index: 4; }
+  footer button { background: #1a2238; color: #e6e9f2; border: 1px solid #34406a; border-radius: 10px; padding: 10px 18px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  footer button:hover { border-color: #ffcc33; }
+  footer button.primary { background: #ffcc33; color: #111; border-color: #ffcc33; min-width: 150px; }
+  footer button.pulse { animation: pulse 1.2s infinite; } @keyframes pulse { 50% { box-shadow: 0 0 0 8px #ffcc3333; } }
+  /* SVG classes */
+  .flow { stroke-dasharray: 10 10; animation: flow .7s linear infinite; } .flow.off { animation: none; opacity: .25; }
+  @keyframes flow { to { stroke-dashoffset: -20; } }
+  .nod { transform-box: fill-box; transform-origin: 50% 50%; animation: nod 1.6s ease-in-out infinite alternate; } .off .nod { animation: none; }
+  @keyframes nod { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+  .ping { transform-box: fill-box; transform-origin: center; animation: ping 1.6s ease-out infinite; }
+  @keyframes ping { from { transform: scale(.6); opacity: .9; } to { transform: scale(2.4); opacity: 0; } }
+  .pop { transform-box: fill-box; transform-origin: center; animation: popin .35s cubic-bezier(.2, 1.5, .4, 1) both; }
+  @keyframes popin { from { transform: scale(.3); opacity: 0; } }
+  .blink { animation: blink 1s infinite; } @keyframes blink { 50% { opacity: .3; } }
+  text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+</style>
+</head>
+<body>
+<svg id="world" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet"></svg>
+<header><div class="step" id="step"></div><h1 id="head">Loading the oil field…</h1><p class="sub" id="sub"></p></header>
+<div class="dots" id="dots"></div>
+<footer>
+  <button id="back">◀ Back</button>
+  <button id="next" class="primary">Start ▶</button>
+  <button id="auto">⏵ Autoplay: off</button>
+  <button id="voice">🔇 Voice</button>
+  <button id="fs">⛶ Full screen</button>
+  <button onclick="location.href='index.html'">Live console →</button>
+</footer>
+<script src="model.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg', W = $('world');
+const q = new URLSearchParams(location.search);
+const fmt$ = v => '$' + Math.round(v).toLocaleString();
+const hm = t => new Date(t * 1000).toISOString().slice(11, 16);
+const dur = min => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, '0')}m`;
+const C = { bg: '#0b1020', panel: '#141b31', line: '#2a3350', ink: '#f2f4f8', ink2: '#b7c0d4', muted: '#7d88a6', water: '#3d9bff', ok: '#2fd27a', warn: '#ffb020', bad: '#ff5464', gold: '#ffcc33', oil: '#c9a227' };
+let ds, R, cur = -1, runId = 0, auto = q.has('auto'), voice = false;
+
+// ---------- timing (setTimeout so background tabs / recorders don't stall) ----------
+const tick = f => setTimeout(f, 16);
+function wait(ms) { const my = runId; return new Promise((res, rej) => { const t0 = performance.now(); (function k() { if (my !== runId) return rej('stop'); performance.now() - t0 >= ms ? res() : tick(k); })(); }); }
+function tween(ms, fn) { const my = runId; return new Promise((res, rej) => { const t0 = performance.now(); (function k() { if (my !== runId) return rej('stop'); const p = Math.min(1, (performance.now() - t0) / ms); fn(p); p < 1 ? tick(k) : res(); })(); }); }
+const bg = p => p.catch(() => {}); // fire-and-forget animation
+const ease = p => p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+
+// ---------- SVG kit ----------
+function el(tag, a = {}, parent = W) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); parent.appendChild(e); return e; }
+function txt(x, y, s, a = {}, parent = W) { const t = el('text', { x, y, fill: C.ink, 'font-size': 20, 'font-weight': 700, ...a }, parent); t.textContent = s; return t; }
+function label(x, y, s, o = {}) { // rounded callout
+  const fs = o.size || 18, w = s.length * fs * .56 + 24, g = el('g', { class: 'pop' }, o.parent || W);
+  const ax = o.anchor === 'middle' ? x - w / 2 : o.anchor === 'end' ? x - w : x;
+  el('rect', { x: ax, y: y - fs - 6, width: w, height: fs + 16, rx: 10, fill: o.fill || '#1d2642', stroke: o.stroke || C.line, 'stroke-width': 1.5 }, g);
+  txt(ax + 12, y + 1, s, { 'font-size': fs, fill: o.color || C.ink }, g);
+  return g;
+}
+function panel(x, y, w, h, title) { const g = el('g', { class: 'pop' }); el('rect', { x, y, width: w, height: h, rx: 16, fill: C.panel, stroke: C.line, 'stroke-width': 1.5 }, g); if (title) txt(x + 20, y + 34, title, { 'font-size': 17, fill: C.muted, 'letter-spacing': '.08em' }, g); return g; }
+function jack(x, y, s = 1, parent = W) {
+  const g = el('g', { transform: `translate(${x} ${y}) scale(${s})` }, parent);
+  el('path', { d: 'M-16 0 L0 -30 L16 0', stroke: '#8a93b8', 'stroke-width': 4, fill: 'none' }, g);
+  el('rect', { class: 'nod', x: -28, y: -37, width: 56, height: 8, rx: 4, fill: C.oil }, g);
+  return g;
+}
+function tank(x, y, w, h, parent = W) {
+  const g = el('g', {}, parent);
+  el('rect', { x, y, width: w, height: h, rx: 10, fill: '#1b2340', stroke: '#6e78a3', 'stroke-width': 3 }, g);
+  const fill = el('rect', { x: x + 4, y: y + h - 4, width: w - 8, height: 0, rx: 6, fill: C.water }, g);
+  const sy = y + h * (1 - ds.lim.shutdown / 100);
+  el('line', { x1: x - 14, x2: x + w + 14, y1: sy, y2: sy, stroke: C.bad, 'stroke-width': 3, 'stroke-dasharray': '8 6' }, g);
+  const pct = txt(x + w / 2, y + h - 16, '', { 'text-anchor': 'middle', 'font-size': Math.max(16, w / 5), 'font-weight': 900 }, g);
+  return { g, x, y, w, h, sy, set(p) { const hh = (h - 8) * Math.min(100, p) / 100; fill.setAttribute('y', y + h - 4 - hh); fill.setAttribute('height', hh); fill.setAttribute('fill', p >= ds.lim.shutdown - 1e-6 ? C.bad : p >= ds.lim.warning ? C.warn : C.water); pct.textContent = (p >= ds.lim.warning ? (Math.floor(Math.min(p, ds.lim.shutdown) * 10) / 10).toFixed(1) : p.toFixed(0)) + '%'; } };
+}
+function truck(x, y, s = 1, parent = W) {
+  const g = el('g', { transform: `translate(${x} ${y})` }, parent), b = el('g', { transform: `scale(${s})` }, g);
+  el('rect', { x: -38, y: -26, width: 50, height: 26, rx: 5, fill: '#e8ecf8' }, b);
+  el('rect', { x: 12, y: -19, width: 22, height: 19, rx: 4, fill: C.gold }, b);
+  el('rect', { x: 21, y: -15, width: 10, height: 7, fill: '#1b2340' }, b);
+  el('circle', { cx: -24, cy: 2, r: 6, fill: '#111', stroke: '#aaa', 'stroke-width': 2 }, b);
+  el('circle', { cx: 20, cy: 2, r: 6, fill: '#111', stroke: '#aaa', 'stroke-width': 2 }, b);
+  return { g, at(nx, ny) { g.setAttribute('transform', `translate(${nx} ${ny})`); } };
+}
+function sensor(x, y, parent = W) { const g = el('g', {}, parent); el('circle', { class: 'ping', cx: x, cy: y, r: 10, fill: 'none', stroke: C.gold, 'stroke-width': 2 }, g); el('circle', { cx: x, cy: y, r: 8, fill: C.gold }, g); return g; }
+function packet(x1, y1, x2, y2, ms = 900, color = C.gold) { const d = el('circle', { r: 6, fill: color }); return bg(tween(ms, p => { const e = ease(p); d.setAttribute('cx', x1 + (x2 - x1) * e); d.setAttribute('cy', y1 + (y2 - y1) * e - Math.sin(p * Math.PI) * 60); })).then(() => d.remove()); }
+function brain(x, y) { // "Glass Box" model chip
+  const g = el('g', { class: 'pop' });
+  el('rect', { x: x - 70, y: y - 50, width: 140, height: 100, rx: 18, fill: '#10213f', stroke: '#4fb3ff', 'stroke-width': 3 }, g);
+  for (let k = -2; k <= 2; k++) { el('line', { x1: x + k * 22, y1: y - 62, x2: x + k * 22, y2: y - 50, stroke: '#4fb3ff', 'stroke-width': 3 }, g); el('line', { x1: x + k * 22, y1: y + 50, x2: x + k * 22, y2: y + 62, stroke: '#4fb3ff', 'stroke-width': 3 }, g); }
+  txt(x, y - 6, 'GLASS BOX', { 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 900, fill: '#4fb3ff' }, g);
+  txt(x, y + 20, 'model', { 'text-anchor': 'middle', 'font-size': 16, fill: C.ink2 }, g);
+  return g;
+}
+function chart(x, y, w, h, opts) { // tiny line chart; returns plot(points) / mapping helpers
+  const g = el('g', {});
+  el('rect', { x, y, width: w, height: h, rx: 10, fill: '#0f1529', stroke: C.line }, g);
+  const X = v => x + 14 + (v - opts.x0) / (opts.x1 - opts.x0) * (w - 28), Y = v => y + h - 12 - (v - opts.y0) / (opts.y1 - opts.y0) * (h - 24);
+  return { g, X, Y };
+}
+
+function svgButton(x, y, w, h, text, sub, parent = W) {
+  const g = el('g', { class: 'pop', style: 'cursor:pointer' }, parent);
+  const r = el('rect', { x, y, width: w, height: h, rx: 14, fill: '#1d2642', stroke: '#5b6a92', 'stroke-width': 2 }, g);
+  txt(x + 22, y + h / 2 + 8, text, { 'font-size': 24, 'font-weight': 800 }, g);
+  txt(x + w - 20, y + h / 2 + 7, sub || '', { 'font-size': 18, fill: C.muted, 'text-anchor': 'end' }, g);
+  g.onmouseenter = () => r.setAttribute('stroke', C.gold); g.onmouseleave = () => r.setAttribute('stroke', '#5b6a92');
+  return g;
+}
+function choose(buttons) { // resolves with the index clicked; autoplay clicks the first untried one
+  const my = runId; let done = false;
+  return new Promise((res, rej) => {
+    buttons.forEach((b, j) => b.onclick = () => { if (!done) { done = true; res(j); } });
+    if (auto) setTimeout(() => { const j = buttons.findIndex(b => !b.dataset.tried); if (!done && j >= 0) { done = true; res(j); } }, 1600);
+    (function k() { if (done) return; if (my !== runId) return rej('stop'); tick(k); })();
+  });
+}
+function stamp(x, y, text, color) { const g = el('g', { class: 'pop', transform: `rotate(-5 ${x} ${y})` }); const w = text.length * 22 + 50; el('rect', { x: x - w / 2, y: y - 46, width: w, height: 70, rx: 12, fill: '#000000bb', stroke: color, 'stroke-width': 6 }, g); txt(x, y + 4, text, { 'text-anchor': 'middle', 'font-size': 38, 'font-weight': 900, fill: color }, g); return g; }
+async function rewindFx(fn) {
+  const g = el('g', {}); el('rect', { width: 1600, height: 900, fill: '#3fd0ff14' }, g);
+  const lines = el('g', {}, g); for (let y = 0; y < 960; y += 16) el('rect', { x: 0, y, width: 1600, height: 3, fill: '#ffffff22' }, lines);
+  txt(800, 470, '◀◀ REWIND', { 'text-anchor': 'middle', 'font-size': 72, 'font-weight': 900, fill: '#fff', 'letter-spacing': 8 }, g);
+  await tween(1200, p => { lines.setAttribute('transform', `translate(0 ${-(p * 200) % 16})`); fn(p); });
+  g.remove();
+}
+
+// ---------- geography: real coordinates from network.json ----------
+function haversineMi([a, b], [c, d]) { const r = Math.PI / 180, s = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 2 * 3958.8 * Math.asin(Math.sqrt(s)); }
+function projector(sys, box) {
+  const pts = [sys.truck_yard, [sys.disposal_site.lat, sys.disposal_site.lon], ...sys.facilities.map(f => [f.lat, f.lon])];
+  const la = pts.map(p => p[0]), lo = pts.map(p => p[1]), kx = Math.cos(la[0] * Math.PI / 180);
+  const x0 = Math.min(...lo), x1 = Math.max(...lo), y0 = Math.min(...la), y1 = Math.max(...la);
+  const sc = Math.min(box.w / ((x1 - x0) * kx), box.h / (y1 - y0));
+  const ox = box.x + (box.w - (x1 - x0) * kx * sc) / 2, oy = box.y + (box.h - (y1 - y0) * sc) / 2;
+  return (lat, lon) => [ox + (lon - x0) * kx * sc, oy + (y1 - lat) * sc];
+}
+function mapBase(sys, box, o = {}) {
+  const P = projector(sys, box);
+  for (let gx = box.x - 40; gx < box.x + box.w + 40; gx += 60) el('line', { x1: gx, x2: gx, y1: box.y - 40, y2: box.y + box.h + 40, stroke: '#141b31' });
+  for (let gy = box.y - 40; gy < box.y + box.h + 40; gy += 60) el('line', { y1: gy, y2: gy, x1: box.x - 40, x2: box.x + box.w + 40, stroke: '#141b31' });
+  const [dx, dy] = P(sys.disposal_site.lat, sys.disposal_site.lon), [yx, yy] = P(...sys.truck_yard);
+  const pipes = {}, sites = {};
+  for (const f of sys.facilities) { const [fx, fy] = P(f.lat, f.lon); pipes[f.id] = el('line', { x1: fx, y1: fy, x2: dx, y2: dy, stroke: C.water, 'stroke-width': 4, class: 'flow' }); }
+  el('circle', { cx: dx, cy: dy, r: 22, fill: '#12304f', stroke: C.water, 'stroke-width': 3 }); txt(dx, dy + 7, '⬇', { 'text-anchor': 'middle', 'font-size': 20, fill: C.water });
+  if (!o.quiet) txt(dx, dy + 46, 'Disposal site', { 'text-anchor': 'middle', 'font-size': 16, fill: C.ink2 });
+  el('rect', { x: yx - 24, y: yy - 20, width: 48, height: 40, rx: 6, fill: '#2a2f45', stroke: C.gold, 'stroke-width': 3 }); el('path', { d: `M${yx - 28} ${yy - 18} L${yx} ${yy - 36} L${yx + 28} ${yy - 18}`, fill: 'none', stroke: C.gold, 'stroke-width': 3 });
+  if (!o.quiet) txt(yx, yy + 42, 'Truck yard', { 'text-anchor': 'middle', 'font-size': 16, fill: C.ink2 });
+  for (const f of sys.facilities) {
+    const [fx, fy] = P(f.lat, f.lon), g = el('g', {});
+    f.wells.forEach((w, k) => { const a = -Math.PI / 2 + (k - 1) * .7; el('line', { x1: fx + Math.cos(a) * 60, y1: fy + Math.sin(a) * 60, x2: fx, y2: fy, stroke: '#2c3a5e', 'stroke-width': 2 }, g); jack(fx + Math.cos(a) * 62, fy + Math.sin(a) * 62 + 10, .6, g); });
+    el('rect', { x: fx - 20, y: fy - 22, width: 40, height: 44, rx: 6, fill: '#1b2340', stroke: '#6e78a3', 'stroke-width': 3 }, g);
+    el('rect', { x: fx - 16, y: fy - 2, width: 32, height: 20, rx: 3, fill: C.water }, g);
+    txt(fx, fy + 48, 'Facility ' + f.id.slice(-1), { 'text-anchor': 'middle', 'font-size': 16, fill: C.ink2 }, g);
+    sites[f.id] = { g, x: fx, y: fy };
+  }
+  return { P, pipes, sites, yard: [yx, yy], disposal: [dx, dy] };
+}
+
+// ---------- tank physics for replays (minute steps, same rules as the model's planner) ----------
+function ctxOf(f) { return { fac: f.fac, V0: f.level / 100 * f.fac.cap, lim: ds.lim.shutdown / 100 * f.fac.cap, rate: f.inflowBpd / 1440, wells: f.wells, H: f.H }; }
+function sim(c, plan, t) {
+  const tr = plan.actions.find(a => a.type === 'dispatch_truck'), sh = plan.actions.find(a => a.type === 'shut_in_wells');
+  const cut = sh ? c.wells.filter(w => sh.wells.includes(w.id)).reduce((a, w) => a + w.bpd, 0) / 1440 : 0, cap = ds.ops.emergency_trucking.truck_capacity_bbl;
+  let v = c.V0, tripAt = null, trips = 0;
+  for (let m = 0; m < Math.min(t, c.H); m++) {
+    if (tripAt == null) v += c.rate - (sh && m >= sh.start_after_min ? cut : 0);
+    if (tripAt == null && v >= c.lim) { v = c.lim; tripAt = m + 1; }
+    if (tr && trips < tr.trips_per_truck && m + 1 === c.fac.resp + trips * c.fac.cycle) { v -= Math.min(tr.trucks * cap, v); trips++; }
+  }
+  return { pct: v / c.fac.cap * 100, tripAt };
+}
+
+// ---------- the cases, picked from the data (works on any dataset) ----------
+let K;
+function prepare() {
+  R = Model.weekReplay(ds);
+  const ev = R.engine.events.find(e => { const p = R.plans.get(e.event_id); return p && p.freeTrucks === ds.ops.systems[e.system_id].emergency_fleet_size && p.doNothing.cost > 0 && p.plan.trucks > 0; })
+    || R.engine.events.find(e => R.plans.get(e.event_id)?.doNothing.cost > 0);
+  const i0 = (ev.onset_unix - ds.tel.t0) / Model.STEP, fleet = ds.ops.systems[ev.system_id].emergency_fleet_size;
+  const fsx = Model.failureState(ds, ev, i0), trace = [];
+  let t = performance.now(); for (let r = 0; r < 50; r++) Model.planOne(ds, fsx, fleet); const planMs = (performance.now() - t) / 50;
+  const P = Model.planOne(ds, fsx, fleet, trace);
+  const sys = ds.systems.find(s => s.id === ev.system_id), facJ = sys.facilities.find(f => f.id === ev.facility_id);
+  const leak = R.engine.events.find(e => e.category === 'pipeline_leak'), wear = R.engine.events.find(e => e.category === 'pump_degradation');
+  // three tanks, fewer trucks
+  let c2 = null;
+  const fails = R.engine.events.filter(e => e.category === 'pump_failure');
+  for (const s of ds.systems) {
+    const fs = fails.filter(e => e.system_id === s.id), fl = ds.ops.systems[s.id].emergency_fleet_size;
+    for (const a of fs) { const grp = fs.filter(e => e.onset_unix >= a.onset_unix && e.onset_unix < (a.end_unix ?? Infinity)); if (grp.length > fl && (!c2 || grp.length > c2.grp.length)) c2 = { s, grp, fleet: fl }; }
+  }
+  if (c2) {
+    const lastOn = Math.max(...c2.grp.map(e => e.onset_unix)), firstEnd = Math.min(...c2.grp.map(e => e.end_unix ?? Infinity));
+    c2.tick = Math.min((lastOn + 7200 - ds.tel.t0) / 300, (firstEnd - ds.tel.t0) / 300 - 1, ds.tel.n - 1);
+    const rep = Model.createReplay(ds); for (let k = 0; k <= c2.tick; k++) rep.step(k);
+    t = performance.now(); for (let r = 0; r < 20; r++) Model.alertsAt(ds, rep.engine, c2.tick); c2.ms = (performance.now() - t) / 20;
+    c2.items = Model.alertsAt(ds, rep.engine, c2.tick).failures.filter(f => f.fac.sys === c2.s.id);
+    if (c2.items.length <= c2.fleet) c2 = null;
+  }
+  t = performance.now(); Model.weekReplay(ds); const weekMs = performance.now() - t;
+  const fleetT = Model.fleetWhatIf(ds), rb = Model.rebalance(fleetT), mv = Model.maintenanceValue(R);
+  K = { fleetT, rb, mv, ev, i0, fleet, fsx, trace, planMs, P, sys, facJ, fac: fsx.fac, leak, wear, c2, weekMs };
+}
+
+// ---------- voice: ElevenLabs via the local server (app/serve.mjs), browser voice as fallback ----------
+let audio = null, speakSeq = 0, spoken = Promise.resolve(), endSpeech = () => {}, lastLine = '', eleven = false;
+const forSpeech = t => t.replace(/<[^>]+>/g, '').replace(/÷/g, ' divided by ').replace(/×/g, ' times ').replace(/→/g, ' to ').replace(/\//g, ', ').replace(/\s+/g, ' ').trim();
+function stopVoice() { speakSeq++; endSpeech(); if (audio) { audio.pause(); audio = null; } speechSynthesis.cancel(); }
+function speak(raw) {
+  stopVoice(); const my = speakSeq, text = forSpeech(raw);
+  spoken = new Promise(done => {
+    endSpeech = done;
+    const browser = () => { if (my !== speakSeq) return done(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; u.onend = u.onerror = done; speechSynthesis.speak(u); };
+    fetch('/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+      .then(b => { if (my !== speakSeq) return done(); audio = new Audio(URL.createObjectURL(b)); audio.onended = audio.onerror = done; audio.play().catch(browser); })
+      .catch(browser);
+  });
+}
+fetch('/tts/status').then(r => r.json()).then(j => { eleven = j.elevenlabs; $('voice').textContent = voice ? '🔊 Voice' : '🔇 Voice'; $('voice').title = eleven ? 'ElevenLabs voice' : 'ElevenLabs key not set: browser voice (cached clips still play)'; }).catch(() => { $('voice').title = 'Run app/serve.mjs for the ElevenLabs voice. Using the browser voice.'; });
+
+// ---------- scenes ----------
+function head(step, h, sub) {
+  $('step').textContent = cur >= 0 && /^\d+ · /.test(step) ? `${cur + 1} · ` + step.replace(/^\d+ · /, '') : step; $('head').innerHTML = h; $('sub').innerHTML = sub || '';
+  for (const id of ['step', 'head', 'sub']) { const e = $(id); e.classList.remove('fade'); void e.offsetWidth; e.classList.add('fade'); }
+  lastLine = h + '. ' + (sub || '');
+  if (voice) speak(lastLine);
+}
+const BOX = { x: 160, y: 250, w: 1280, h: 540 };
+
+const scenes = [
+  // 1. the field (location from network.json)
+  async function field() {
+    const sys = K.sys;
+    head('1 · THE FIELD', `This is system <b>${sys.id}</b>: ${sys.facilities.length} facilities in the oil field`, 'Every pin is placed from its real <b>latitude and longitude</b> in network.json. Nothing is drawn by hand.');
+    const M = mapBase(sys, { x: 180, y: 290, w: 760, h: 470 });
+    const f = M.sites[K.facJ.id], [dx, dy] = M.disposal, [yx, yy] = M.yard;
+    const lg = panel(1010, 270, 430, 500, 'WHAT YOU\'RE LOOKING AT');
+    const steps = [
+      [f.x, f.y - 92, 'Wells bring up oil, plus salt water'],
+      [f.x + 36, f.y, 'The water fills a tank'],
+      [dx + 34, dy - 10, 'A pump sends it by pipeline to disposal'],
+      [yx + 40, yy - 10, `${ds.ops.systems[sys.id].emergency_fleet_size} emergency trucks wait at the yard`],
+    ];
+    await wait(1000);
+    for (let k = 0; k < steps.length; k++) {
+      const [x, y, t] = steps[k], g = el('g', { class: 'pop' });
+      el('circle', { cx: x, cy: y, r: 17, fill: C.gold }, g); txt(x, y + 7, k + 1, { 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 900, fill: '#111' }, g);
+      const r = el('g', { class: 'pop' }, lg);
+      el('circle', { cx: 1048, cy: 336 + k * 70, r: 17, fill: C.gold }, r); txt(1048, 343 + k * 70, k + 1, { 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 900, fill: '#111' }, r);
+      txt(1078, 343 + k * 70, t, { 'font-size': 18 }, r);
+      await wait(1300);
+    }
+    const loc = el('g', { class: 'pop' }, lg);
+    txt(1034, 640, '📍 Where things are (from network.json)', { 'font-size': 16, fill: C.ink2 }, loc);
+    txt(1034, 675, `Facility ${K.facJ.id.slice(-1)}: ${K.facJ.lat.toFixed(3)}°, ${K.facJ.lon.toFixed(3)}°`, { 'font-size': 16, fill: C.ink }, loc);
+    txt(1034, 705, `Truck yard: ${sys.truck_yard[0].toFixed(2)}°, ${sys.truck_yard[1].toFixed(2)}°`, { 'font-size': 16, fill: C.ink }, loc);
+    txt(1034, 735, `Disposal: ${sys.disposal_site.lat.toFixed(3)}°, ${sys.disposal_site.lon.toFixed(3)}°`, { 'font-size': 16, fill: C.ink }, loc);
+  },
+
+  // 2. sensors stream in
+  async function sensors() {
+    const fac = K.fac, S = fac.s;
+    head('2 · SENSORS', 'Every <b>5 minutes</b>, every sensor sends a reading', `Wells, tank, pump and pipeline all report in. This week that's <b>${ds.tel.rows.toLocaleString()}</b> readings. The model reads each one as it arrives.`);
+    // facility side view
+    const wells = fac.wells.map((w, k) => jack(230, 420 + k * 120, 1.1));
+    fac.wells.forEach((w, k) => el('path', { d: `M262 ${400 + k * 120} H360 V560 H430`, stroke: C.water, 'stroke-width': 6, fill: 'none', class: 'flow' }));
+    const T = tank(430, 380, 170, 330); T.set(S.level[K.i0 - 30]);
+    el('rect', { x: 650, y: 640, width: 80, height: 70, rx: 10, fill: '#1b2340', stroke: '#6e78a3', 'stroke-width': 3 }); txt(690, 740, 'Pump', { 'text-anchor': 'middle', 'font-size': 16, fill: C.ink2 });
+    const pl = el('circle', { cx: 690, cy: 675, r: 14, fill: C.ok });
+    el('path', { d: 'M600 690 H650 M730 680 H900', stroke: C.water, 'stroke-width': 8, fill: 'none', class: 'flow' });
+    txt(905, 700, '→ pipeline to disposal', { 'font-size': 16, fill: C.ink2 });
+    const pts = [[230, 380, 'well'], [230, 500, 'well'], [230, 620, 'well'], [515, 360, 'tank'], [690, 625, 'pump'], [880, 660, 'pipe']];
+    pts.forEach(([x, y]) => sensor(x, y));
+    brain(1000, 400);
+    // live readout
+    const rp = panel(1150, 250, 330, 470, 'LIVE READINGS'); const rows = {};
+    [['level', 'Tank level', '%'], ['inflow', 'Water in', 'bbl/day'], ['flow', 'Pump out', 'bbl/day'], ['recv', 'Arrives at disposal', 'bbl/day'], ['ppsi', 'Pipeline pressure', 'psi']].forEach(([k, l, u], j) => {
+      txt(1175, 320 + j * 80, l, { 'font-size': 16, fill: C.ink2 }, rp); rows[k] = txt(1175, 350 + j * 80, '–', { 'font-size': 26, 'font-weight': 900 }, rp); txt(1455, 350 + j * 80, u, { 'font-size': 14, fill: C.muted, 'text-anchor': 'end' }, rp);
+    });
+    const clock = label(1150, 760, '', { size: 18 });
+    for (let i = K.i0 - 30; i < K.i0; i++) {
+      T.set(S.level[i]); pl.setAttribute('fill', S.pst[i] === 1 ? C.ok : '#5b6a92');
+      rows.level.textContent = S.level[i].toFixed(1); rows.inflow.textContent = Math.round(S.inflow[i]).toLocaleString(); rows.flow.textContent = Math.round(S.flow[i]).toLocaleString(); rows.recv.textContent = Math.round(S.recv[i]).toLocaleString(); rows.ppsi.textContent = Math.round(S.ppsi[i]);
+      clock.querySelector('text').textContent = `🕒 ${hm(ds.tel.t0 + i * 300)} · ${Math.round(i * ds.tel.rows / ds.tel.n).toLocaleString()} readings so far`;
+      pts.forEach(([x, y], j) => setTimeout(() => packet(x, y, 1000, 400, 700), j * 60));
+      await wait(380);
+    }
+  },
+
+  // 3. what's normal and what isn't
+  async function problems() {
+    const fac = K.fac;
+    head('3 · IS IT NORMAL?', 'The model knows what <b>healthy</b> looks like, from each machine\'s own specs', 'A healthy pump moves its rated flow. Water that leaves the pump should arrive at disposal. Pressure should stay at its usual level. So it watches for <b>three problems</b>:');
+    const cards = [
+      ['Pump failure', 'The pump stops. The tank starts filling.', 'Sees the fault code', C.bad],
+      ['Pipeline leak', 'Water leaves the pump but not all of it arrives.', 'Compares water in vs. water out', C.warn],
+      ['Pump wearing out', 'The pump moves a little less water every hour.', 'Watches pump strength slip', C.warn],
+    ];
+    const g = [];
+    for (let k = 0; k < 3; k++) {
+      const x = 170 + k * 430, p = panel(x, 290, 400, 470); g.push(p);
+      txt(x + 24, 340, cards[k][0], { 'font-size': 28, 'font-weight': 900, fill: cards[k][3] }, p);
+      txt(x + 24, 376, cards[k][1], { 'font-size': 16, fill: C.ink2 }, p);
+      txt(x + 24, 735, '🔍 ' + cards[k][2], { 'font-size': 17, fill: C.ink }, p);
+      await wait(700);
+    }
+    // 1: pump light flips red, tank rises
+    const T = tank(250, 420, 110, 240, g[0]); T.set(K.fsx.level); const light = el('circle', { cx: 440, cy: 600, r: 26, fill: C.ok }, g[0]); txt(440, 660, 'pump', { 'text-anchor': 'middle', 'font-size': 15, fill: C.ink2 }, g[0]);
+    // 2: pipe with meters
+    const x2 = 600; el('path', { d: `M${x2 + 30} 560 H${x2 + 370}`, stroke: C.water, 'stroke-width': 14, class: 'flow', fill: 'none' }, g[1]);
+    const inT = label(x2 + 24, 500, 'in: –', { parent: g[1], size: 17 }), outT = label(x2 + 376, 500, 'out: –', { parent: g[1], size: 17, anchor: 'end' });
+    const drops = el('g', {}, g[1]);
+    // 3: health battery
+    const x3 = 1030; el('rect', { x: x3 + 60, y: 430, width: 280, height: 110, rx: 14, fill: 'none', stroke: '#6e78a3', 'stroke-width': 4 }, g[2]); el('rect', { x: x3 + 340, y: 465, width: 14, height: 40, rx: 3, fill: '#6e78a3' }, g[2]);
+    const bat = el('rect', { x: x3 + 68, y: 438, width: 264, height: 94, rx: 8, fill: C.ok }, g[2]); const batT = txt(x3 + 200, 600, '', { 'text-anchor': 'middle', 'font-size': 30, 'font-weight': 900 }, g[2]);
+    // real numbers
+    const L = K.leak, Wv = K.wear;
+    const lf = L && ds.facs.find(f => f.id === L.facility_id), li = L && (L.detected_unix - ds.tel.t0) / 300;
+    let lin = 0, lout = 0, n = 0; if (L) for (let j = li; j < li + 12 && j < ds.tel.n; j++) if (lf.s.pst[j] === 1) { lin += lf.s.flow[j]; lout += lf.s.recv[j]; n++; }
+    const wf = Wv && ds.facs.find(f => f.id === Wv.facility_id), wi = Wv && (Wv.detected_unix - ds.tel.t0) / 300;
+    let wh = 0, wn = 0; if (Wv) for (let j = wi - 12; j <= wi; j++) if (wf.s.pst[j] === 1) { wh += wf.s.flow[j] / wf.maxFlow; wn++; }
+    const health = wn ? wh / wn * 100 : 98;
+    await tween(3500, p => {
+      if (p > .25) { light.setAttribute('fill', C.bad); T.set(K.fsx.level + p * 25); }
+      if (n) { const miss = (lin - lout) / n * Math.min(1, p * 1.5); inT.querySelector('text').textContent = `in: ${Math.round(lin / n).toLocaleString()}`; outT.querySelector('text').textContent = `out: ${Math.round(lin / n - miss).toLocaleString()}`; if (Math.random() < .3) { const d = el('circle', { cx: x2 + 200 + Math.random() * 30, cy: 570, r: 5, fill: C.water }, drops); bg(tween(700, q => d.setAttribute('cy', 570 + q * 120))).then(() => d.remove()); } }
+      const hp = 100 - (100 - health) * p; bat.setAttribute('width', 264 * Math.max(.05, (hp - 90) / 10)); bat.setAttribute('fill', hp > 99 ? C.ok : C.warn); batT.textContent = hp.toFixed(1) + '% strength';
+    });
+    label(305, 690, `✓ caught on the first reading`, { parent: g[0], size: 16, anchor: 'middle', color: C.ok });
+    if (n) label(x2 + 200, 690, `${Math.round((lin - lout) / n)} bbl/day missing → leak`, { parent: g[1], size: 16, anchor: 'middle', color: C.warn });
+    if (Wv) label(x3 + 200, 660, `${(100 - health).toFixed(1)}% weaker in ${((Wv.detected_unix - Wv.onset_unix) / 3600).toFixed(0)} h → inspect`, { parent: g[2], size: 16, anchor: 'middle', color: C.warn });
+  },
+
+  // 4. how it spots a slow problem early (CUSUM as an evidence meter)
+  async function evidence() {
+    const L = K.leak; if (!L) return;
+    const f = ds.facs.find(x => x.id === L.facility_id), di = (L.detected_unix - ds.tel.t0) / 300;
+    const CAL = Model.CAL, base = f.disp + 50;
+    head('4 · CATCHING IT EARLY', 'One odd reading is just noise. <b>Many odd readings in a row</b> are a real problem.', `Every reading of the pipeline pressure at ${f.id} adds a little <b>evidence</b> if it's low, and takes some away if it looks normal. When the evidence bar fills up: alert.`);
+    const pts = []; for (let j = di - 144; j <= di + 12; j++) if (j >= 0 && f.s.pst[j] === 1) pts.push(j);
+    const vals = pts.map(j => f.s.ppsi[j]);
+    const lo = Math.min(...vals, base - 30), hi = Math.max(...vals, base + 10);
+    const ch = chart(160, 280, 860, 470, { x0: 0, x1: pts.length - 1, y0: lo, y1: hi });
+    txt(180, 315, 'Pipeline pressure (psi), one dot per reading while the pump runs', { 'font-size': 16, fill: C.ink2 });
+    el('rect', { x: 174, y: ch.Y(base + CAL.pressSigma * 2), width: 832, height: ch.Y(base - CAL.pressSigma * 2) - ch.Y(base + CAL.pressSigma * 2), fill: '#2fd27a22' });
+    txt(1000, ch.Y(base) + 6, `healthy ≈ ${base}`, { 'font-size': 15, fill: C.ok, 'text-anchor': 'end' });
+    // evidence meter
+    const mx = 1100, my = 300, mh = 420;
+    panel(mx - 20, my - 20, 380, mh + 90, 'EVIDENCE');
+    el('rect', { x: mx + 40, y: my + 30, width: 90, height: mh - 40, rx: 12, fill: '#0f1529', stroke: C.line, 'stroke-width': 2 });
+    const bar = el('rect', { x: mx + 46, y: my + mh - 16, width: 78, height: 0, rx: 8, fill: C.warn });
+    el('line', { x1: mx + 30, x2: mx + 140, y1: my + 36, y2: my + 36, stroke: C.bad, 'stroke-width': 3, 'stroke-dasharray': '6 4' }); txt(mx + 150, my + 42, 'ALERT', { 'font-size': 16, fill: C.bad, 'font-weight': 900 });
+    const note = txt(mx + 150, my + 200, '', { 'font-size': 17, fill: C.ink2 }), note2 = txt(mx + 150, my + 228, '', { 'font-size': 17, fill: C.ink2 });
+    const clock = txt(180, 785, '', { 'font-size': 18, fill: C.ink2 });
+    let S = 0, alerted = false;
+    for (let k = 0; k < pts.length; k++) {
+      const z = (base - vals[k]) / CAL.pressSigma; S = Math.max(0, S + z - CAL.leakK);
+      const low = z > CAL.leakK;
+      el('circle', { cx: ch.X(k), cy: ch.Y(vals[k]), r: 6, fill: low ? C.warn : C.ok, class: 'pop' });
+      const frac = Math.min(1, S / CAL.leakH); bar.setAttribute('height', frac * (mh - 52)); bar.setAttribute('y', my + mh - 16 - frac * (mh - 52));
+      note.textContent = low ? '▲ low reading' : '● looks normal'; note.setAttribute('fill', low ? C.warn : C.ok);
+      note2.textContent = `evidence ${Math.round(frac * 100)}%`;
+      clock.textContent = `🕒 ${hm(ds.tel.t0 + pts[k] * 300)}`;
+      if (!alerted && S > CAL.leakH) {
+        alerted = true; bar.setAttribute('fill', C.bad);
+        label(ch.X(k), ch.Y(vals[k]) - 30, `🚨 Leak alert at ${hm(L.detected_unix)}`, { anchor: 'middle', color: C.bad, size: 18 });
+        label(1000, 365, `Caught ${Math.round((L.detected_unix - L.onset_unix) / 60)} min after it began, hours before it's obvious`, { anchor: 'end', size: 17, color: C.gold });
+        await wait(1200);
+      }
+      await wait(alerted ? 120 : 160);
+    }
+  },
+
+  // 5. countdown
+  async function countdown() {
+    const { fsx, P, ev, fac } = K, dn = P.doNothing, S = fac.s;
+    head('5 · THE COUNTDOWN', `${hm(ev.onset_unix)}: the pump at <b>${fac.id}</b> stops. How long until the tank is full?`, `If the tank reaches <b>${ds.lim.shutdown}%</b>, every well here shuts off and stops earning, <b>${fmt$(fsx.lostRevPerHr)}/hour</b>. It's simple arithmetic: space left ÷ how fast it fills.`);
+    const T = tank(260, 280, 230, 470); T.set(fsx.level);
+    txt(375, T.y - 16, `shutdown line ${ds.lim.shutdown}%`, { 'font-size': 18, fill: C.bad, 'text-anchor': 'middle' });
+    const fx = 620;
+    const eq = panel(fx, 280, 820, 180);
+    txt(fx + 30, 340, 'space left', { 'font-size': 18, fill: C.ink2 }, eq); txt(fx + 280, 340, 'fills per hour', { 'font-size': 18, fill: C.ink2 }, eq); txt(fx + 560, 340, 'time left', { 'font-size': 18, fill: C.ink2 }, eq);
+    await wait(600);
+    txt(fx + 30, 400, `${(ds.lim.shutdown - fsx.level).toFixed(1)}%`, { 'font-size': 44, 'font-weight': 900, class: 'pop' }, eq); txt(fx + 215, 400, '÷', { 'font-size': 44, fill: C.muted }, eq); await wait(700);
+    txt(fx + 280, 400, `${fsx.ratePct.toFixed(1)}%`, { 'font-size': 44, 'font-weight': 900, class: 'pop' }, eq); txt(fx + 495, 400, '=', { 'font-size': 44, fill: C.muted }, eq); await wait(700);
+    txt(fx + 560, 400, dur(dn.tripMin), { 'font-size': 44, 'font-weight': 900, fill: C.gold, class: 'pop' }, eq);
+    txt(fx + 30, 440, `(${(fsx.inflowBpd / 24).toFixed(0)} barrels/hour into a ${fac.cap.toLocaleString()}-barrel tank)`, { 'font-size': 15, fill: C.muted }, eq);
+    await wait(900);
+    // race: tank vs repair
+    const rp = panel(fx, 490, 820, 260, 'THE RACE');
+    const H = fsx.H, bx = fx + 200, bw = 580;
+    txt(fx + 30, 570, '🛢 Tank full', { 'font-size': 20 }, rp); txt(fx + 30, 650, '🔧 Repair done', { 'font-size': 20 }, rp);
+    el('rect', { x: bx, y: 548, width: bw, height: 30, rx: 8, fill: '#0f1529' }, rp); el('rect', { x: bx, y: 628, width: bw, height: 30, rx: 8, fill: '#0f1529' }, rp);
+    const b1 = el('rect', { x: bx, y: 548, width: 0, height: 30, rx: 8, fill: C.bad }, rp), b2 = el('rect', { x: bx, y: 628, width: 0, height: 30, rx: 8, fill: C.ok }, rp);
+    const clock = txt(fx + 30, 720, '', { 'font-size': 18, fill: C.ink2 }, rp);
+    let tripped = false;
+    await tween(6000, p => {
+      const m = p * H, k = Math.min(ds.tel.n - 1, K.i0 + Math.floor(m / 5));
+      T.set(m >= dn.tripMin ? ds.lim.shutdown : S.level[k]); // the real recording: nobody acted; level holds at shutdown
+      b1.setAttribute('width', bw * Math.min(1, m / dn.tripMin)); b2.setAttribute('width', bw * p);
+      clock.textContent = `🕒 ${hm(ev.onset_unix + m * 60)} · replaying the real sensor recording`;
+      if (!tripped && m >= dn.tripMin) { tripped = true; label(bx + bw * dn.tripMin / H, 540, `tank full ${hm(ev.onset_unix + dn.tripMin * 60)}`, { anchor: 'middle', color: C.bad, size: 16, parent: rp }); }
+    });
+    label(bx + bw, 700, `repair ${hm(ev.onset_unix + H * 60)}`, { anchor: 'end', color: C.ok, size: 16, parent: rp });
+    label(375, 800, `Doing nothing: wells off ${dur(H - dn.tripMin)} → ${fmt$(dn.cost)} lost`, { anchor: 'middle', color: C.bad });
+  },
+
+  // 6. your turn: the interactive game (truck drives in, tank drains, rewind on a wrong answer)
+  async function yourTurn() {
+    const { fsx, P, ev, fac, i0, fleet } = K, dn = P.doNothing, S = fac.s;
+    const shut = P.best[0] !== dn ? P.best[0] : null, best = P.best[fleet], truckPlan = best.trucks ? best : P.best.find(p => p.trucks);
+    head('6 · YOUR TURN', `The pump at <b>${fac.id}</b> just failed. <b>You</b> are the operator. What do you do?`, `Pick one. We'll fast-forward ${dur(fsx.H)} until the repair is done, then show what it cost. Wrong call? We rewind.`);
+    el('path', { d: 'M0 760 Q400 720 800 750 T1600 745 V900 H0Z', fill: '#121a33' });
+    el('rect', { x: 0, y: 790, width: 1600, height: 34, fill: '#1c2440' }); for (let x = 20; x < 1600; x += 60) el('rect', { x, y: 805, width: 30, height: 4, fill: '#46507a' });
+    el('rect', { x: 40, y: 740, width: 70, height: 50, rx: 6, fill: '#2a2f45', stroke: C.gold, 'stroke-width': 3 }); txt(75, 732, 'Truck yard', { 'text-anchor': 'middle', 'font-size': 15, fill: C.ink2 });
+    const jacks = fac.wells.map((w, k) => { const g = jack(200 + k * 110, 700, 1.3); txt(200 + k * 110, 735, w.id.split('_').pop(), { 'text-anchor': 'middle', 'font-size': 15, fill: C.ink2 }); return g; });
+    const pipes = fac.wells.map((w, k) => el('path', { d: `M${232 + k * 110} 690 V705 H560`, stroke: C.water, 'stroke-width': 6, fill: 'none', class: 'flow' }));
+    const T = tank(560, 330, 210, 390); T.set(fsx.level);
+    txt(665, 316, `shutdown line ${ds.lim.shutdown}%`, { 'text-anchor': 'middle', 'font-size': 16, fill: C.bad });
+    el('rect', { x: 800, y: 660, width: 70, height: 60, rx: 8, fill: '#1b2340', stroke: '#6e78a3', 'stroke-width': 3 }); el('circle', { cx: 835, cy: 690, r: 14, fill: C.bad, class: 'blink' }); txt(835, 745, 'pump: FAULT', { 'text-anchor': 'middle', 'font-size': 15, fill: C.bad });
+    const clock = label(560, 270, `🕒 ${hm(ev.onset_unix)}`, { size: 20 }); const ct = clock.querySelector('text');
+    const red = el('rect', { width: 1600, height: 900, fill: '#ff2a2a', opacity: 0, 'pointer-events': 'none' });
+    const pnl = panel(1000, 250, 450, 470, 'WHAT DO YOU DO?');
+    const opts = [{ name: '🛑 Do nothing', plan: dn, real: true }];
+    if (shut) opts.push({ name: '🔧 Switch off a well', plan: shut });
+    opts.push({ name: '🚚 Send a truck', plan: truckPlan });
+    const cheapest = opts.reduce((a, b) => b.plan.cost < a.plan.cost ? b : a);
+    const btns = opts.map((o, j) => svgButton(1025, 300 + j * 100, 400, 76, o.name, '', pnl));
+    const verdict = txt(1025, 640, 'Tap an option.', { 'font-size': 18, fill: C.ink2 }, pnl);
+    const reset = () => { T.set(fsx.level); red.setAttribute('opacity', 0); jacks.forEach(j => j.classList.remove('off')); pipes.forEach(p => p.classList.remove('off')); ct.textContent = `🕒 ${hm(ev.onset_unix)}`; };
+    for (;;) {
+      const j = await choose(btns), o = opts[j]; btns[j].dataset.tried = 1;
+      verdict.textContent = 'Fast-forwarding…';
+      const sh = o.plan.actions.find(a => a.type === 'shut_in_wells');
+      const tk = o.plan.trucks ? truck(60, 800, 1.5) : null, pops = new Set(), tmp = [];
+      let tripped = false;
+      await tween(7000, p => {
+        const m = p * fsx.H; let lvl, isTrip;
+        if (o.real) { const k = Math.min(ds.tel.n - 1, i0 + Math.floor(m / 5)); isTrip = m >= dn.tripMin; lvl = isTrip ? ds.lim.shutdown : S.level[k]; }
+        else { const r = sim(ctxOf(fsx), o.plan, m); lvl = r.pct; isTrip = r.tripAt != null; }
+        T.set(lvl);
+        ct.textContent = `🕒 ${hm(ev.onset_unix + m * 60)}${o.real ? ' · real recording' : ''}`;
+        if (isTrip && !tripped) { tripped = true; jacks.forEach(g => g.classList.add('off')); pipes.forEach(x => x.classList.add('off')); red.setAttribute('opacity', .16); tmp.push(stamp(665, 520, 'WELLS SHUT IN', C.bad)); }
+        if (sh) fac.wells.forEach((w, k) => { if (m >= sh.start_after_min && sh.wells.includes(w.id) && !pops.has(w.id)) { pops.add(w.id); jacks[k].classList.add('off'); pipes[k].classList.add('off'); tmp.push(label(200 + k * 110, 600, `${w.id.split('_').pop()} off`, { anchor: 'middle', color: C.gold, size: 16 })); } });
+        if (tk) {
+          const a = fac.resp, x = m < a ? 60 + 560 * ease(m / a) : m < a + 50 ? 620 : 620 + (m - a - 50) * 6;
+          tk.at(x, 800);
+          if (m >= a && !pops.has('t')) { pops.add('t'); tmp.push(label(665, 760, `−${o.plan.trucks * ds.ops.emergency_trucking.truck_capacity_bbl} bbl hauled away`, { anchor: 'middle', color: C.ok, size: 18 })); }
+        }
+      });
+      const win = o === cheapest, costTxt = fmt$(o.plan.cost);
+      const st = stamp(1225, 188, win ? `✓ ${costTxt} · CHEAPEST` : `${costTxt}`, win ? C.ok : C.bad);
+      btns[j].querySelector('text:last-of-type').textContent = costTxt;
+      if (win) { verdict.textContent = 'Tank stays under the line until the repair.'; break; }
+      verdict.textContent = o.real ? `Wells dark until ${hm(ev.onset_unix + fsx.H * 60)}: ${costTxt} lost.` : 'It works, but there\'s a cheaper move.';
+      await wait(2200); st.remove(); tmp.forEach(g => g.remove());
+      const from = T.cur; await rewindFx(p => T.set(from + (fsx.level - from) * ease(p))); tk?.g.remove(); reset();
+      verdict.textContent = 'Try again.';
+    }
+  },
+
+  // 7. cheapest fix
+  async function fix() {
+    const { fsx, P, fleet, trace, planMs } = K, dn = P.doNothing;
+    const shut = P.best[0] !== dn ? P.best[0] : null, best = P.best[fleet], truckPlan = best.trucks ? best : P.best.find(p => p.trucks);
+    head('7 · THE CHEAPEST FIX', 'Three ways to respond. The model <b>tries every combination</b> and checks which ones keep the tank safe.', 'Send trucks to haul water away, switch off wells early so the tank fills slower, or do nothing. It checks every mix, every truck count and every minute to act.');
+    const opts = [['Do nothing', dn, '🛑'], ...(shut ? [['Switch off a well early', shut, '🔧']] : []), ['Send a truck', truckPlan, '🚚']];
+    const c = ctxOf(fsx), cw = 400, gap = (1280 - opts.length * cw) / (opts.length - 1 || 1);
+    const cards = opts.map(([name, plan, ic], k) => {
+      const x = 160 + k * (cw + gap), p = panel(x, 280, cw, 330);
+      txt(x + 24, 330, `${ic} ${name}`, { 'font-size': 24, 'font-weight': 900 }, p);
+      txt(x + 24, 360, plan.label.length > 44 ? plan.label.slice(0, 42) + '…' : plan.label, { 'font-size': 14, fill: C.ink2 }, p);
+      const ch = chart(x + 20, 380, cw - 40, 150, { x0: 0, x1: fsx.H, y0: 30, y1: 100 }); p.appendChild(ch.g);
+      el('line', { x1: ch.X(0), x2: ch.X(fsx.H), y1: ch.Y(ds.lim.shutdown), y2: ch.Y(ds.lim.shutdown), stroke: C.bad, 'stroke-dasharray': '6 4', 'stroke-width': 2 }, p);
+      const line = el('polyline', { points: '', fill: 'none', stroke: C.water, 'stroke-width': 3 }, p);
+      const cost = txt(x + 24, 590, '', { 'font-size': 30, 'font-weight': 900 }, p);
+      return { x, p, ch, line, cost, plan };
+    });
+    await wait(800);
+    await tween(3000, p => cards.forEach(cd => {
+      const m = p * fsx.H, ptsS = [];
+      for (let t = 0; t <= m; t += 5) ptsS.push(`${cd.ch.X(t)},${cd.ch.Y(sim(c, cd.plan, t).pct)}`);
+      cd.line.setAttribute('points', ptsS.join(' '));
+      const tr = sim(c, cd.plan, m).tripAt != null; cd.line.setAttribute('stroke', tr ? C.bad : C.water);
+      cd.cost.textContent = fmt$(cd.plan.cost * p);
+    }));
+    // the search
+    const sp = panel(160, 640, 1280, 150, 'THE SEARCH: every plan, checked exactly');
+    const n = trace.length, cell = Math.min(28, (1220 - n * 4) / n);
+    for (let k = 0; k < n; k++) {
+      const t = trace[k], x = 190 + k * (cell + 4);
+      el('rect', { x, y: 700, width: cell, height: 40, rx: 4, fill: t.ok ? '#1d6b47' : '#5b1f2a', class: 'pop' }, sp);
+      if (k % 2 === 0) await wait(30);
+    }
+    const win = cards.reduce((a, b) => b.plan.cost < a.plan.cost ? b : a);
+    txt(190, 775, `${n} plans checked in ${planMs < .01 ? '< 0.01' : planMs.toFixed(2)} ms · green = tank stays safe, red = tank overflows · the cheapest safe one wins`, { 'font-size': 16, fill: C.ink2 }, sp);
+    el('rect', { x: win.x - 6, y: 274, width: cw + 12, height: 342, rx: 20, fill: 'none', stroke: C.ok, 'stroke-width': 5, class: 'pop' });
+    label(win.x + cw - 20, 330, '✓ CHEAPEST', { anchor: 'end', color: C.ok, size: 18, stroke: C.ok });
+  },
+
+  // 7. who goes: location + ETA + crew phone
+  async function whoGoes() {
+    const { sys, facJ, fac, ev, P, fleet } = K, best = P.best[fleet];
+    const mi = haversineMi(sys.truck_yard, [facJ.lat, facJ.lon]);
+    head('8 · WHO GOES, AND WHERE ARE THEY?', `The truck leaves the yard. We know where it is <b>every minute</b>.`, `The yard and every facility have real coordinates, so the route is <b>${mi.toFixed(0)} miles</b> on the map. ops.json gives the drive time: <b>${fac.resp} min</b>. Time since leaving tells us how far along the road the truck is.`);
+    const M = mapBase(sys, { x: 200, y: 290, w: 840, h: 460 }, { quiet: true });
+    const [yx, yy] = M.yard, f = M.sites[facJ.id];
+    el('line', { x1: yx, y1: yy, x2: f.x, y2: f.y, stroke: C.gold, 'stroke-width': 4, 'stroke-dasharray': '12 10' });
+    label((yx + f.x) / 2, (yy + f.y) / 2 - 20, `${mi.toFixed(1)} mi · ${fac.resp} min`, { anchor: 'middle', color: C.gold });
+    const tk = truck(yx, yy, 1.1);
+    // phone
+    const ph = el('g', { class: 'pop' });
+    el('rect', { x: 1120, y: 250, width: 300, height: 560, rx: 44, fill: '#05070d', stroke: '#3a4366', 'stroke-width': 4 }, ph);
+    el('rect', { x: 1136, y: 266, width: 268, height: 528, rx: 32, fill: '#1a2140' }, ph);
+    txt(1270, 320, hm(ev.onset_unix + 2 * 60), { 'text-anchor': 'middle', 'font-size': 44, 'font-weight': 300 }, ph);
+    await wait(900);
+    const nt = el('g', { class: 'pop' }, ph);
+    el('rect', { x: 1148, y: 360, width: 244, height: 150, rx: 18, fill: '#f2f4f8' }, nt);
+    txt(1166, 390, 'GLASS BOX · FIELD CREW', { 'font-size': 12, fill: '#666', 'font-weight': 800 }, nt);
+    txt(1166, 420, `🚚 Go to ${facJ.id.replace('_FACILITY_', ' · ')}`, { 'font-size': 18, fill: '#111', 'font-weight': 900 }, nt);
+    txt(1166, 448, `Haul ${best.trips * ds.ops.emergency_trucking.truck_capacity_bbl} bbl. Arrive ${hm(ev.onset_unix + fac.resp * 60)}.`, { 'font-size': 15, fill: '#333' }, nt);
+    txt(1166, 476, '📳 urgent: long buzz ×3', { 'font-size': 14, fill: C.bad, 'font-weight': 700 }, nt);
+    ph.setAttribute('transform', 'translate(0 0)');
+    if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
+    bg(tween(900, p => ph.setAttribute('transform', `translate(${Math.sin(p * 40) * 6 * (1 - p)} 0)`)));
+    txt(1270, 560, 'Buzz pattern = how urgent', { 'text-anchor': 'middle', 'font-size': 15, fill: C.ink2 }, ph);
+    [['🔴 shutdown soon', 'long ×3'], ['🟠 inspect a leak', 'short ×2'], ['🟡 just watching', 'one tap']].forEach(([a, b], k) => { txt(1160, 600 + k * 34, a, { 'font-size': 15 }, ph); txt(1385, 600 + k * 34, b, { 'font-size': 14, fill: C.muted, 'text-anchor': 'end' }, ph); });
+    const eta = label(200, 820, '', { size: 18 });
+    await tween(6000, p => {
+      const m = p * fac.resp; tk.at(yx + (f.x - yx) * ease(p), yy + (f.y - yy) * ease(p));
+      eta.querySelector('text').textContent = `🕒 ${hm(ev.onset_unix + m * 60)} · truck ${(mi * ease(p)).toFixed(1)} of ${mi.toFixed(1)} mi · arrives ${hm(ev.onset_unix + fac.resp * 60)}`;
+    });
+    label(f.x - 40, f.y - 60, `✓ arrived · hauling ${ds.ops.emergency_trucking.truck_capacity_bbl} bbl`, { color: C.ok, anchor: 'end' });
+  },
+
+  // 8. three tanks, two trucks
+  async function threeTanks() {
+    const c2 = K.c2;
+    if (!c2) { head('9 · SHARED TRUCKS', 'No system in this dataset had more failures than trucks', ''); return; }
+    const { s, items, fleet, ms } = c2, now = ds.tel.t0 + c2.tick * 300;
+    head('9 · THE HARD CASE', `<b>${items.length} pumps</b> fail in ${s.id}. There are only <b>${fleet} trucks</b>.`, `A truck sent to one tank can't help another. The model plans all ${items.length} together: who gets a truck, and what the others do instead.`);
+    const M = mapBase(s, { x: 180, y: 320, w: 760, h: 380 }, { quiet: true });
+    const [yx, yy] = M.yard;
+    items.forEach((it, j) => { const f = M.sites[it.fac.id]; label(f.x, f.y - 80, `⏱ ${dur(it.hours_to_limit.p50 * 60)}`, { anchor: 'middle', color: C.bad, size: 17 }); });
+    const trucks = Array.from({ length: fleet }, (_, k) => truck(yx + k * 30 - 15, yy + 40 + k * 4, .9));
+    label(180, 790, `🕒 ${hm(now)} · ${items.length} tanks filling`, { size: 18 });
+    await wait(1500);
+    // try every split
+    const F = fleet, combos = []; (function rec(j, left, a) { if (j === items.length) return combos.push(a.slice()); for (let k = 0; k <= left; k++) { a.push(k); rec(j + 1, left - k, a); a.pop(); } })(0, F, []);
+    const cost = a => a.reduce((t, k, j) => t + items[j].alternatives[k].cost, 0), bestC = Math.min(...combos.map(cost));
+    const pnl = panel(1000, 260, 440, Math.min(560, 90 + combos.length * 40), `EVERY WAY TO SPLIT ${F} TRUCKS`);
+    let shownBest = false;
+    for (let k = 0; k < combos.length && k < 12; k++) {
+      const a = combos[k], cst = cost(a), isB = !shownBest && Math.abs(cst - bestC) < .01;
+      if (isB) { shownBest = true; el('rect', { x: 1012, y: 290 + k * 40, width: 416, height: 34, rx: 8, fill: C.gold, class: 'pop' }, pnl); }
+      txt(1028, 314 + k * 40, a.map((n, j) => `${items[j].fac.id.slice(-1)}:${'🚚'.repeat(n) || '–'}`).join('   '), { 'font-size': 17, fill: isB ? '#111' : C.ink2, class: 'pop' }, pnl);
+      txt(1416, 314 + k * 40, fmt$(cst), { 'font-size': 17, 'text-anchor': 'end', 'font-weight': 800, fill: isB ? '#111' : C.ink2, class: 'pop' }, pnl);
+      await wait(260);
+    }
+    // send the trucks
+    const targets = []; items.forEach((it, j) => { for (let k = 0; k < it.plan.trucks; k++) targets.push(it); });
+    await tween(3500, p => targets.forEach((it, k) => { const f = M.sites[it.fac.id], sx = yx + k * 30 - 15, sy = yy + 40 + k * 4; trucks[k].at(sx + (f.x - sx) * ease(p), sy + (f.y + 30 - sy) * ease(p)); }));
+    items.forEach(it => { const f = M.sites[it.fac.id], sh = it.plan.actions.find(a => a.type === 'shut_in_wells'); label(f.x + 34, f.y + 8, it.plan.trucks ? '✓ truck' : `🔧 well ${sh ? sh.wells.map(w => w.split('_').pop()).join('+') : ''} off at +${sh ? sh.start_after_min : 0}m`, { size: 15, color: it.plan.trucks ? C.ok : C.gold }); });
+    const total = items.reduce((a, it) => a + it.plan.cost, 0), dnT = items.reduce((a, it) => a + it.doNothing.cost, 0);
+    label(1440, 800, `All ${items.length} tanks safe: ${fmt$(total)} instead of ${fmt$(dnT)} · planned in ${ms < .01 ? '< 0.01' : ms.toFixed(2)} ms`, { anchor: 'end', color: C.gold, size: 18 });
+  },
+
+  // 10. saving even more: maintenance + fleet (interactive)
+  async function savingMore() {
+    const { fleetT, rb, mv } = K;
+    const mvSave = mv.reduce((a, m) => a + m.planCost, 0), mvRisk = mv.reduce((a, m) => a + m.doNothingCost, 0), rbSave = rb.moves.reduce((a, m) => a + m.gain, 0);
+    head('10 · SAVING EVEN MORE', 'Plans are already optimal. The <b>next savings</b>: fix pumps early, move idle trucks.', 'Every truck/trip/well/minute mix is already checked, so no plan can be cheaper. Bigger wins come from the data the model already has.');
+    // ① plans
+    const p1 = panel(160, 270, 400, 500, '① EVERY PLAN, CHECKED');
+    txt(185, 340, 'This week (do nothing → our plans)', { 'font-size': 16, fill: C.ink2 }, p1);
+    const bmax = R.doNothingCost; el('rect', { x: 185, y: 365, width: 350, height: 46, rx: 8, fill: '#3a1d26' }, p1);
+    const b1 = el('rect', { x: 185, y: 365, width: 0, height: 46, rx: 8, fill: C.bad }, p1); txt(195, 397, fmt$(R.doNothingCost), { 'font-size': 20, 'font-weight': 900 }, p1);
+    const b2 = el('rect', { x: 185, y: 425, width: 0, height: 46, rx: 8, fill: C.ok }, p1); txt(195, 457, fmt$(R.planCost), { 'font-size': 20, 'font-weight': 900, fill: '#04150c' }, p1);
+    bg(tween(1200, p => { b1.setAttribute('width', 350 * p); b2.setAttribute('width', 350 * p * R.planCost / bmax); }));
+    [['Trucks × trips × wells × exact minute', ''], ['Shared trucks split across tanks', ''], ['Result: the cheapest legal plan', '']].forEach(([a], k) => txt(185, 530 + k * 36, '✓ ' + a, { 'font-size': 16 }, p1));
+    txt(185, 680, 'No room left in daily planning.', { 'font-size': 18, 'font-weight': 800, fill: C.gold }, p1);
+    txt(185, 708, 'The money is in the next two ideas →', { 'font-size': 16, fill: C.ink2 }, p1);
+    await wait(1600);
+    // ② maintenance
+    const p2 = panel(600, 270, 400, 500, '② FIX WORN PUMPS EARLY');
+    txt(625, 340, `${mv.length} pumps warned us before failing:`, { 'font-size': 16, fill: C.ink2 }, p2);
+    for (let k = 0; k < mv.length; k++) {
+      const m = mv[k], y = 380 + k * 90, x0 = 630, x1 = 960;
+      txt(625, y, m.asset, { 'font-size': 17, 'font-weight': 800 }, p2);
+      el('line', { x1: x0, x2: x1, y1: y + 30, y2: y + 30, stroke: C.line, 'stroke-width': 4 }, p2);
+      const dot = el('circle', { cx: x0, cy: y + 30, r: 9, fill: C.warn }, p2); txt(x0, y + 60, 'wear alert', { 'font-size': 13, fill: C.warn }, p2);
+      txt(x1, y + 36, '✕', { 'font-size': 24, 'font-weight': 900, fill: C.bad, 'text-anchor': 'middle' }, p2); txt(x1, y + 60, 'failure', { 'font-size': 13, fill: C.bad, 'text-anchor': 'middle' }, p2);
+      txt((x0 + x1) / 2, y + 22, `${m.warnedHours.toFixed(0)} h warning`, { 'font-size': 15, 'text-anchor': 'middle', fill: C.ink2 }, p2);
+      await tween(700, p => dot.setAttribute('cx', x0 + (x1 - 22 - x0) * ease(p)));
+    }
+    txt(625, 680, `Repair during the warning →`, { 'font-size': 16, fill: C.ink2 }, p2);
+    txt(625, 712, `${fmt$(mvSave)} of trucks avoided`, { 'font-size': 22, 'font-weight': 900, fill: C.ok }, p2);
+    txt(625, 740, `(${fmt$(mvRisk)} at risk if nobody acted)`, { 'font-size': 15, fill: C.muted }, p2);
+    await wait(1200);
+    // ③ fleet (interactive)
+    const p3 = panel(1040, 270, 400, 500, '③ PUT TRUCKS WHERE NEEDED');
+    txt(1065, 340, 'Tap − / + to move trucks. Weekly cost:', { 'font-size': 15, fill: C.ink2 }, p3);
+    const size = Object.fromEntries(Object.entries(fleetT).map(([k, v]) => [k, v.now])), total0 = Object.keys(size).reduce((a, k) => a + fleetT[k].costs[size[k]], 0), fleet0 = Object.values(size).reduce((a, b) => a + b, 0);
+    const rows = {};
+    Object.keys(size).forEach((k, j) => {
+      const y = 380 + j * 52;
+      txt(1065, y + 8, k, { 'font-size': 20, 'font-weight': 900 }, p3);
+      const minus = svgButton(1115, y - 18, 44, 40, '−', '', p3), plus = svgButton(1235, y - 18, 44, 40, '+', '', p3);
+      rows[k] = { n: txt(1197, y + 9, '', { 'font-size': 20, 'font-weight': 900, 'text-anchor': 'middle' }, p3), c: txt(1420, y + 8, '', { 'font-size': 18, 'text-anchor': 'end' }, p3) };
+      minus.onclick = () => { if (size[k] > 0) { size[k]--; draw(); } }; plus.onclick = () => { if (size[k] + 1 < fleetT[k].costs.length) { size[k]++; draw(); } };
+    });
+    const tot = txt(1065, 690, '', { 'font-size': 20, 'font-weight': 900 }, p3), tot2 = txt(1065, 712, '', { 'font-size': 15, fill: C.ink2 }, p3);
+    const apply = svgButton(1065, 718, 350, 44, '✨ Best move of trucks', '', p3);
+    function draw() {
+      let t = 0, n = 0; for (const k in size) { const c = fleetT[k].costs[size[k]]; t += c; n += size[k]; rows[k].n.textContent = size[k] + '🚚'; rows[k].c.textContent = fmt$(c); rows[k].c.setAttribute('fill', c < fleetT[k].costs[fleetT[k].now] - 1 ? C.ok : c > fleetT[k].costs[fleetT[k].now] + 1 ? C.bad : C.ink); }
+      tot.textContent = `${fmt$(t)}/week  (${t <= total0 ? 'saves ' + fmt$(total0 - t) : 'costs ' + fmt$(t - total0) + ' more'})`; tot.setAttribute('fill', t < total0 - 1 ? C.ok : t > total0 + 1 ? C.bad : C.ink);
+      tot2.textContent = `${n} trucks in total (today: ${fleet0})`;
+    }
+    draw();
+    apply.onclick = async () => { Object.assign(size, Object.fromEntries(Object.entries(fleetT).map(([k, v]) => [k, v.now]))); draw(); let mi = 0; for (const m of rb.moves) { await wait(500); size[m.from]--; size[m.to]++; draw(); txt(1065, 625 + 24 * mi++, `🚚 ${m.from} → ${m.to}: saves ${fmt$(m.gain)}/week`, { 'font-size': 15, fill: C.ok, class: 'pop' }, p3); await wait(900); } };
+    if (auto) { await wait(1500); apply.onclick(); }
+    await wait(1500);
+    label(800, 808, `Together: about ${fmt$(mvSave + rbSave)} more per week, with no new trucks`, { anchor: 'middle', size: 20, color: C.gold });
+  },
+
+  // 11. results
+  async function results() {
+    head('11 · THE WHOLE WEEK', 'Predict the failure. Send the cheapest fix. <b>Show every step.</b>', 'Most control rooms run a black box. We built a <b>glass box</b>: every alert shows its evidence, and every plan shows its math.');
+    const tiles = [[fmt$(R.saved), 'saved vs. doing nothing', C.ok], [`${R.engine.events.length}`, 'problems found', C.ink], [`${K.weekMs < 1 ? '< 1' : K.weekMs.toFixed(0)} ms`, `to read ${ds.tel.rows.toLocaleString()} readings`, C.ink], ['$0', 'GPU, cloud or training needed', C.ink]];
+    for (let k = 0; k < tiles.length; k++) {
+      const x = 160 + k * 325, p = panel(x, 330, 300, 220);
+      txt(x + 150, 450, tiles[k][0], { 'text-anchor': 'middle', 'font-size': 52, 'font-weight': 900, fill: tiles[k][2] }, p);
+      txt(x + 150, 500, tiles[k][1], { 'text-anchor': 'middle', 'font-size': 17, fill: C.ink2 }, p);
+      await wait(500);
+    }
+    txt(800, 640, `Do nothing: ${fmt$(R.doNothingCost)}  →  our plans: ${fmt$(R.planCost)}`, { 'text-anchor': 'middle', 'font-size': 24, fill: C.ink2, class: 'pop' });
+    const more = K.mv.reduce((a, m) => a + m.planCost, 0) + K.rb.moves.reduce((a, m) => a + m.gain, 0);
+    if (more > 0) txt(800, 690, `+ about ${fmt$(more)}/week more from early pump repairs and moving idle trucks`, { 'text-anchor': 'middle', 'font-size': 22, fill: C.gold, class: 'pop' });
+  },
+];
+
+// start screen: a calm, animated picture of a facility
+function intro() {
+  el('path', { d: 'M0 690 Q300 640 600 680 T1200 670 T1600 690 V900 H0Z', fill: '#121a33' });
+  [260, 360, 460].forEach((x, k) => { jack(x, 640, 1.4); el('path', { d: `M${x + 30} 630 V${660 - k * 0} H700`, stroke: C.water, 'stroke-width': 6, fill: 'none', class: 'flow' }); });
+  const T = tank(700, 400, 180, 270); T.set(55);
+  el('path', { d: 'M880 640 H1500', stroke: C.water, 'stroke-width': 8, fill: 'none', class: 'flow' });
+  truck(1200, 760, 1.6); brain(1250, 430);
+  for (const [x, y] of [[700, 380], [360, 560], [1000, 620]]) { sensor(x + 90, y); }
+}
+
+// ---------- navigation ----------
+function buildDots() { $('dots').innerHTML = scenes.map((_, k) => `<button aria-label="step ${k + 1}"></button>`).join(''); [...$('dots').children].forEach((b, k) => b.onclick = () => go(k)); }
+async function go(k) {
+  if (k < 0 || k >= scenes.length) return;
+  runId++; cur = k; W.innerHTML = ''; stopVoice();
+  [...$('dots').children].forEach((b, j) => b.className = j === k ? 'on' : j < k ? 'done' : '');
+  $('next').textContent = k === scenes.length - 1 ? '↻ Start over' : 'Next ▶'; $('next').classList.remove('pulse');
+  const my = runId;
+  try { await scenes[k](); } catch (e) { if (e !== 'stop') throw e; return; }
+  if (my !== runId) return;
+  $('next').classList.add('pulse');
+  if (auto && k < scenes.length - 1) { try { if (voice) await Promise.race([spoken, wait(30000)]); if (my !== runId) return; await wait(voice ? 1200 : 3500); go(k + 1); } catch (e) {} }
+}
+$('next').onclick = () => go(cur >= scenes.length - 1 ? 0 : cur + 1);
+$('back').onclick = () => go(Math.max(0, cur - 1));
+$('auto').onclick = () => { auto = !auto; $('auto').textContent = `⏵ Autoplay: ${auto ? 'on' : 'off'}`; if (auto && $('next').classList.contains('pulse')) go(cur + 1); };
+$('voice').onclick = () => { voice = !voice; $('voice').textContent = voice ? '🔊 Voice' : '🔇 Voice'; if (voice && lastLine) speak(lastLine); else stopVoice(); };
+$('fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); $('next').click(); } if (e.key === 'ArrowLeft') go(cur - 1); if (e.key === 'f') $('fs').click(); });
+$('auto').textContent = `⏵ Autoplay: ${auto ? 'on' : 'off'}`;
+if (q.has('voice')) { voice = true; $('voice').textContent = '🔊 Voice'; } // ?voice=1 starts narrated
+
+(async () => {
+  try {
+    const base = '../HackUTD-ZeroDay/' + (q.get('d') || 'history/full_week') + '/';
+    const get = async f => { const r = await fetch(base + f); if (!r.ok) throw new Error(f + ' ' + r.status); return r.text(); };
+    const [n, o, t] = await Promise.all([get('network.json'), get('ops.json'), get('telemetry.csv')]);
+    ds = Model.loadDataset(JSON.parse(n), JSON.parse(o), t);
+    prepare();
+  } catch (e) {
+    head('', "Can't load the data", `${e.message}. Serve the hack-utd folder with <b>python3 -m http.server</b>, then open /app/story.html`); return;
+  }
+  buildDots();
+  const k = +q.get('step') || 0; // ?step=4 jumps straight to a scene
+  if (q.has('step') || auto) go(k - (q.has('step') ? 1 : 0));
+  else { intro(); head('GLASS BOX · HOW IT WORKS', `How we keep Avon's oil field running, in <b>${scenes.length} short steps</b>`, `Everything you'll see runs live on <b>${ds.tel.rows.toLocaleString()}</b> real sensor readings. Press <b>Start</b>, or use the → arrow key.`); $('next').onclick = () => { $('next').onclick = () => go(cur >= scenes.length - 1 ? 0 : cur + 1); go(0); }; }
+})();
+</script>
+</body>
+</html>
