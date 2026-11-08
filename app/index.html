@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glass Box: Beat the Shutdown</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--ring); position: sticky; top: 0; background: var(--page); z-index: 5; }
+  h1 { font-size: 16px; margin: 0 12px 0 0; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 0 0 8px; font-weight: 600; }
+  button, select, label.btn { background: var(--surface-2); color: var(--ink); border: 1px solid var(--ring); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+  button:hover, label.btn:hover { border-color: var(--ink-2); }
+  button.primary { background: var(--s1); border-color: var(--s1); color: #fff; font-weight: 600; }
+  #clock { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 170px; }
+  #slider { flex: 1 1 240px; accent-color: var(--s1); }
+  main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns: minmax(300px, 1.1fr) minmax(340px, 1fr); }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px; min-width: 0; }
+  .kpis { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .kpi .v { font-size: 24px; font-weight: 650; margin-top: 2px; }
+  .kpi .l { color: var(--ink-2); font-size: 12px; }
+  .kpi .s { color: var(--muted); font-size: 12px; }
+  .good-text { color: var(--good); }
+  #map { width: 100%; height: 420px; display: block; }
+  #map text { fill: var(--ink-2); font-size: 11px; }
+  #map .fac { cursor: pointer; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+  .alerts { display: flex; flex-direction: column; gap: 8px; max-height: 640px; overflow: auto; }
+  .alert { border: 1px solid var(--ring); border-left: 4px solid var(--muted); border-radius: 8px; padding: 10px; background: var(--surface-2); cursor: pointer; }
+  .alert.critical { border-left-color: var(--critical); } .alert.serious { border-left-color: var(--serious); } .alert.warning { border-left-color: var(--warning); }
+  .alert .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #0b0b0b; white-space: nowrap; }
+  .tag.critical { background: var(--critical); color: #fff; } .tag.serious { background: var(--serious); } .tag.warning { background: var(--warning); } .tag.good { background: var(--good); color: #fff; }
+  .count { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); } .ink2 { color: var(--ink-2); }
+  .bar { height: 6px; background: var(--axis); border-radius: 3px; position: relative; margin: 6px 0; }
+  .bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--s1); }
+  .bar > b { position: absolute; top: -3px; bottom: -3px; width: 2px; }
+  table.alt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  table.alt td { padding: 2px 4px; border-top: 1px solid var(--grid); }
+  table.alt td:last-child { text-align: right; }
+  table.alt tr.best td { color: var(--good); font-weight: 600; }
+  .charts canvas { width: 100%; height: 190px; display: block; }
+  .tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--ring); border-radius: 6px; padding: 6px 8px; font-size: 12px; display: none; z-index: 10; font-variant-numeric: tabular-nums; }
+  .log { font-size: 12px; max-height: 260px; overflow: auto; font-variant-numeric: tabular-nums; }
+  .log div { padding: 4px 0; border-top: 1px solid var(--grid); }
+  .how ol { margin: 0; padding-left: 18px; color: var(--ink-2); } .how li { margin-bottom: 4px; }
+  .wide { grid-column: 1 / -1; }
+  .save3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .save3 h3 { font-size: 14px; margin: 0 0 8px; }
+  .bar2 { height: 26px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-weight: 700; font-size: 13px; margin: 4px 0; font-variant-numeric: tabular-nums; }
+  .mrow { padding: 6px 0; border-top: 1px solid var(--grid); cursor: pointer; font-size: 13px; }
+  .mrow .track { height: 4px; background: var(--axis); border-radius: 2px; margin-top: 6px; position: relative; }
+  .mrow .track i { position: absolute; left: 0; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--warning); }
+  .mrow .track b { position: absolute; right: 0; top: -7px; color: var(--critical); font-size: 13px; }
+  table.fleet { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; }
+  table.fleet td { padding: 3px 4px; border-top: 1px solid var(--grid); }
+  table.fleet td:last-child { text-align: right; }
+  table.fleet button { padding: 1px 8px; }
+  .st-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .st-grid { display: flex; flex-wrap: wrap; gap: 2px; max-height: 210px; overflow: auto; }
+  .st-grid i { width: 9px; height: 9px; border-radius: 2px; background: var(--good); cursor: pointer; }
+  .st-grid i.bad { background: var(--critical); }
+  .st-grid i.joint { background: transparent; box-shadow: inset 0 0 0 2px var(--good); }
+  .st-grid i.joint.bad { box-shadow: inset 0 0 0 2px var(--critical); }
+  .st-grid i.sel { outline: 2px solid var(--ink); }
+  .st-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
+  .st-stats div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+  .st-stats b { display: block; font-size: 20px; }
+  .st-stats small { color: var(--ink-2); }
+  .st-stats .mix { padding: 0; background: none; border-radius: 4px; }
+  .mix { display: flex; height: 18px; border-radius: 4px; overflow: hidden; margin-top: 4px; gap: 2px; }
+  .mix span { display: block; height: 100%; }
+  .st-live { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.4fr); gap: 14px; margin-bottom: 12px; }
+  .st-live h3 { font-size: 13px; margin: 0 0 6px; color: var(--ink-2); }
+  .st-now canvas { width: 100%; height: 180px; display: block; background: var(--surface-2); border-radius: 8px; }
+  .st-now-t { font-size: 13px; margin-top: 6px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .st-now-t b { color: var(--ink); }
+  .st-feed { overflow: hidden; }
+  .st-feed table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .st-feed th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 4px; }
+  .st-feed td { padding: 3px 4px; border-top: 1px solid var(--grid); white-space: nowrap; }
+  .st-feed td.pl { max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
+  .st-feed tr.new { animation: rowin .35s; } @keyframes rowin { from { background: #3987e533; } }
+  @media (max-width: 820px) { .st-live { grid-template-columns: 1fr; } }
+  .st-detail { margin-top: 10px; font-size: 13px; color: var(--ink-2); min-height: 18px; }
+  .st-detail b { color: var(--ink); }
+  #drop { padding: 40px; text-align: center; color: var(--ink-2); }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } #map { height: 320px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Glass Box <span>· Beat the Shutdown</span></h1>
+  <select id="dataset" aria-label="Dataset">
+    <option value="history/mock_test_2026-10-10T1530">mock_test 10-10 15:30</option>
+    <option value="history/full_week">full_week</option>
+    <option value="history/snapshot_2026-10-08T1200">snapshot 10-08 12:00</option>
+    <option value="history/snapshot_2026-10-09T0330">snapshot 10-09 03:30</option>
+    <option value="history/snapshot_2026-10-10T0900">snapshot 10-10 09:00</option>
+    <option value="test">test (judging)</option>
+  </select>
+  <label class="btn">Open folder…<input id="folder" type="file" webkitdirectory multiple hidden></label>
+  <button id="play" class="primary">▶ Replay</button>
+  <select id="speed" aria-label="Replay speed">
+    <option value="12">1 h / sec</option>
+    <option value="36" selected>3 h / sec</option>
+    <option value="144">12 h / sec</option>
+    <option value="288">1 day / sec</option>
+  </select>
+  <input id="slider" type="range" min="0" max="0" value="0" aria-label="Time travel">
+  <span id="clock">no data</span>
+</header>
+
+<main id="app" hidden>
+  <section class="kpis">
+    <div class="card kpi"><div class="l">Saved vs. doing nothing</div><div class="v good-text" id="k-saved">$0</div><div class="s" id="k-saved-s"></div></div>
+    <div class="card kpi"><div class="l">Model speed</div><div class="v" id="k-speed">–</div><div class="s" id="k-speed-s"></div></div>
+    <div class="card kpi"><div class="l">Compute cost</div><div class="v" id="k-cost">$0.00</div><div class="s" id="k-cost-s"></div></div>
+    <div class="card kpi"><div class="l">Open problems</div><div class="v" id="k-open">0</div><div class="s" id="k-open-s"></div></div>
+    <div class="card kpi"><div class="l">More savings possible</div><div class="v" id="k-more" style="color:var(--warning)">–</div><div class="s" id="k-more-s"></div></div>
+    <div class="card kpi"><div class="l">At risk right now if nobody acts</div><div class="v" id="k-risk">$0</div><div class="s" id="k-risk-s"></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Network · click a facility</h2>
+    <svg id="map" role="img" aria-label="Network map"></svg>
+    <div class="legend">
+      <span>● normal</span><span style="color:var(--warning)">◆ watch (early warning)</span><span style="color:var(--serious)">▲ inspect</span><span style="color:var(--critical)">■ pump failure</span><span>□ truck yard</span><span>◇ disposal</span><span>- - truck route</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Alerts · if you act now</h2>
+    <div class="alerts" id="alerts"></div>
+  </section>
+
+  <section class="card charts">
+    <h2 id="chart-title">Tank level (%)</h2>
+    <canvas id="c-level"></canvas>
+    <div class="legend"><span style="color:var(--s1)">— tank level</span><span style="color:var(--s1)">- - predicted</span><span style="color:var(--warning)">warning</span><span style="color:var(--critical)">shutdown</span></div>
+    <h2 style="margin-top:12px">Pump health and water delivered (% while pumping)</h2>
+    <canvas id="c-health"></canvas>
+    <div class="legend"><span style="color:var(--s1)">— pump health (flow ÷ rated)</span><span style="color:var(--s2)">— delivered (received ÷ pumped)</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Glass box log <button id="export" style="float:right;font-size:12px;padding:3px 8px">Export events.json</button></h2>
+    <div class="log" id="log"></div>
+    <div class="how" style="margin-top:12px">
+      <h2>How the model works</h2>
+      <ol>
+        <li><b>Pump failure:</b> the pump reports fault code 2. The countdown is exact physics: (shutdown − level) ÷ fill rate, with a p10–p90 band from the fitted level slope.</li>
+        <li><b>Leak:</b> CUSUM on pipeline pressure below its healthy value (disposal + 50 psi). Confirmed by pumped minus received flow.</li>
+        <li><b>Worn pump:</b> CUSUM on flow below rated, plus discharge pressure sag. A trend line predicts when the pump reaches 80% of rated flow.</li>
+        <li><b>Cheapest plan:</b> checks every mix of trucks × trips × wells to shut in × latest shut-in minute. The fleet is shared across a system's failures.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="card wide">
+    <h2>Saving even more · whole dataset</h2>
+    <div class="save3">
+      <div><h3>① Daily plans: already optimal</h3><div id="sv-plan"></div></div>
+      <div><h3>② Fix worn pumps before they fail</h3><div id="sv-maint"></div></div>
+      <div><h3>③ Put trucks where they're needed</h3><table class="fleet" id="sv-fleet"></table><div id="sv-fleet-s" class="ink2" style="margin-top:6px"></div><button id="sv-best" style="margin-top:8px">✨ Best move of trucks</button><button id="sv-reset" style="margin:8px 0 0 6px">Reset</button></div>
+    </div>
+    <p class="muted" style="margin:10px 0 0;font-size:12px" id="sv-assume">Assumptions: a repair during the wear warning prevents the failure (the data can't prove this). Fleet numbers re-run the whole recording with each truck count; check over more weeks before moving trucks for real. Truck ownership costs aren't in the data.</p>
+  </section>
+
+  <section class="card wide" id="stress">
+    <h2>Planner stress test · our plan vs. brute force</h2>
+    <div class="st-top">
+      <select id="st-n" aria-label="Number of random emergencies"><option value="300">300 emergencies</option><option value="1000" selected>1,000 emergencies</option><option value="3000">3,000 emergencies</option></select>
+      <label class="ink2"><input type="checkbox" id="st-sab"> Sabotage the planner (start shut-ins 15 min early)</label>
+      <select id="st-speed" aria-label="Speed"><option value="watch" selected>👀 Watch (4 cases/sec)</option><option value="fast">⚡ Fast (all at once)</option></select>
+      <button id="st-run" class="primary">▶ Run stress test</button>
+      <span id="st-status" class="ink2"></span>
+    </div>
+    <div class="st-live">
+      <div class="st-now"><h3 id="st-now-h">Now testing</h3><canvas id="st-canvas"></canvas>
+        <div class="legend"><span style="color:var(--critical)">— if nobody acts</span><span style="color:var(--s1)">— our plan</span><span style="color:var(--critical)">- - shutdown 92%</span><span>🚚 truck arrives</span><span style="color:var(--warning)">┆ wells off</span></div>
+        <div id="st-now-t" class="st-now-t">Press ▶ Run stress test.</div></div>
+      <div class="st-feed"><h3>Live feed</h3><table id="st-feed"><thead><tr><th>#</th><th>Tank</th><th>Level</th><th>Fills /h</th><th>Repair</th><th>🚚</th><th>Our plan</th><th>Ours</th><th>Brute force</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="st-grid" id="st-grid" aria-label="One square per random case"></div>
+    <div class="st-stats" id="st-stats"></div>
+    <div id="st-detail" class="st-detail"></div>
+    <p class="muted" style="margin:8px 0 0;font-size:12px">Each square is a random emergency: tank size, fill rate, wells, trucks and drive times all random, and the tank overflows during the repair if nobody acts. Outlined squares are shared-fleet cases (2–4 failing tanks, 1–3 trucks). Each is solved by our planner and by a separate minute-by-minute brute force that tries every truck count, trip count, well set and start minute. Green = same cheapest cost and our plan re-simulated safe. Red = they disagree. Click a square to see it. Same as <code>node app/stress.js</code>.</p>
+  </section>
+</main>
+<div id="drop" class="card" style="margin:16px">Pick a dataset above (serve the <code>hack-utd</code> folder: <code>python3 -m http.server</code>), or use <b>Open folder…</b> and choose any folder with network.json, ops.json and telemetry.csv.</div>
+<div class="tip" id="tip"></div>
+
+<script src="model.js"></script>
+<script src="stress.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const fmt$ = v => '$' + Math.round(v).toLocaleString();
+const fmtT = t => new Date(t * 1000).toISOString().slice(5, 16).replace('T', ' ');
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const CAT = { pump_failure: 'Pump failure', pipeline_leak: 'Pipeline leak', pump_degradation: 'Pump wearing out' };
+let ds, rep, i = 0, playing = false, sel = null, engineUs = [], loadMs = {};
+
+// ---------- loading ----------
+async function loadFromUrl(folder) {
+  const base = '../HackUTD-ZeroDay/' + folder + '/';
+  const get = async f => { const r = await fetch(base + f); if (!r.ok) throw new Error(f + ' ' + r.status); return r.text(); };
+  const [n, o, t] = await Promise.all([get('network.json'), get('ops.json'), get('telemetry.csv')]);
+  start(n, o, t, folder);
+}
+$('dataset').onchange = e => loadFromUrl(e.target.value).catch(err => alert('Could not fetch dataset (' + err.message + '). Serve the hack-utd folder over http, or use Open folder.'));
+$('folder').onchange = async e => {
+  const files = [...e.target.files], pick = n => files.find(f => f.name === n);
+  if (!pick('network.json') || !pick('ops.json') || !pick('telemetry.csv')) return alert('That folder needs network.json, ops.json and telemetry.csv');
+  const [n, o, t] = await Promise.all(['network.json', 'ops.json', 'telemetry.csv'].map(x => pick(x).text()));
+  start(n, o, t, files[0].webkitRelativePath.split('/')[0]);
+};
+
+function start(netTxt, opsTxt, telTxt, name) {
+  let t0 = performance.now();
+  try { ds = Model.loadDataset(JSON.parse(netTxt), JSON.parse(opsTxt), telTxt); }
+  catch (err) { return alert('Could not read dataset: ' + err.message); }
+  loadMs.parse = performance.now() - t0;
+  t0 = performance.now();
+  const full = Model.weekReplay(ds); // full pass once: proves speed and gives the week's totals
+  loadMs.full = performance.now() - t0;
+  loadMs.rows = ds.tel.rows;
+  setupSavings(full);
+  $('slider').max = ds.tel.n - 1;
+  $('app').hidden = false; $('drop').hidden = true;
+  sel = sel && ds.facs.some(f => f.id === sel) ? sel : ds.facs[0].id;
+  document.title = 'Glass Box · ' + name;
+  seek(ds.tel.n - 1); // open at "now" = last reading, the judging view
+  const first = Model.alertsAt(ds, rep.engine, i).failures[0]; if (first) { sel = first.fac.id; render(); }
+}
+
+// Time travel: rebuild the stream up to tick t (whole week takes a few ms).
+function seek(t) {
+  rep = Model.createReplay(ds);
+  for (let j = 0; j <= t; j++) rep.step(j);
+  i = t; render();
+}
+
+// ---------- replay loop ----------
+let last = 0, carry = 0;
+function frame(ts) {
+  if (!playing) return;
+  const dt = last ? (ts - last) / 1000 : 0; last = ts;
+  carry += dt * +$('speed').value;
+  let steps = Math.floor(carry); carry -= steps;
+  const t0 = performance.now(); let done = 0;
+  while (steps-- > 0 && i < ds.tel.n - 1) { rep.step(++i); done++; }
+  if (done) engineUs.push((performance.now() - t0) * 1000 / done), engineUs = engineUs.slice(-60);
+  render();
+  if (i >= ds.tel.n - 1) return stop();
+  requestAnimationFrame(frame);
+}
+function stop() { playing = false; $('play').textContent = '▶ Replay'; }
+$('play').onclick = () => {
+  if (playing) return stop();
+  if (i >= ds.tel.n - 1) seek(0);
+  playing = true; last = 0; $('play').textContent = '❚❚ Pause'; requestAnimationFrame(frame);
+};
+$('slider').oninput = e => { stop(); seek(+e.target.value); };
+
+// ---------- render ----------
+function render() {
+  const now = ds.tel.t0 + i * Model.STEP;
+  $('slider').value = i;
+  $('clock').textContent = fmtT(now) + ' UTC' + (i === ds.tel.n - 1 ? ' · NOW' : '');
+  const tp = performance.now();
+  const A = Model.alertsAt(ds, rep.engine, i);
+  const planMs = performance.now() - tp;
+  const scores = rep.engine.scores();
+  renderKpis(A, planMs);
+  renderAlerts(A, scores);
+  renderMap(A, scores);
+  renderCharts(A);
+  renderLog();
+}
+
+function renderKpis(A, planMs) {
+  const T = rep.totals();
+  $('k-saved').textContent = fmt$(T.saved);
+  $('k-saved-s').textContent = `do nothing ${fmt$(T.doNothingCost)} → our plans ${fmt$(T.planCost)} (${rep.plans.size} pump failures so far)`;
+  const us = engineUs.length ? engineUs.reduce((a, b) => a + b) / engineUs.length : loadMs.full * 1000 / ds.tel.n;
+  $('k-speed').textContent = (loadMs.full).toFixed(0) + ' ms / week';
+  $('k-speed-s').textContent = `${loadMs.rows.toLocaleString()} readings · ${us.toFixed(0)} µs per 5-min tick · plan ${planMs.toFixed(1)} ms`;
+  // shortcut: compute cost uses a $0.05/vCPU-hour cloud price as the yardstick; swap in your host's rate.
+  const cpuH = (loadMs.parse + loadMs.full) / 3.6e6;
+  const cents = cpuH * 0.05 * 52 * 100;
+  $('k-cost').textContent = cents < 1 ? '< 1¢ / year' : cents.toFixed(1) + '¢ / year';
+  $('k-cost-s').textContent = `${(cpuH * 3.6e6).toFixed(0)} ms CPU per week of data · no GPU, no training, runs in this tab`;
+  const fails = A.failures.length, others = A.others.length;
+  $('k-open').textContent = fails + others;
+  $('k-open-s').textContent = `${fails} pump failure${fails === 1 ? '' : 's'} · ${others} inspection${others === 1 ? '' : 's'}`;
+  const risk = A.failures.reduce((a, f) => a + f.doNothing.cost, 0), cost = A.failures.reduce((a, f) => a + f.plan.cost, 0);
+  $('k-risk').textContent = fmt$(risk);
+  $('k-risk-s').textContent = fails ? `cheapest plan ${fmt$(cost)} · saves ${fmt$(risk - cost)}` : 'nothing filling';
+}
+
+function sevOf(cat) { return cat === 'pump_failure' ? 'critical' : 'serious'; }
+function renderAlerts(A, scores) {
+  const out = [];
+  for (const f of A.failures) {
+    const h = f.hours_to_limit, sd = ds.lim.shutdown, wr = ds.lim.warning;
+    const trip = f.tripped ? 'SHUT IN' : h && h.p50 != null ? `${Math.floor(h.p50)}h ${String(Math.round(h.p50 % 1 * 60)).padStart(2, '0')}m` : '–';
+    const options = [['Do nothing', f.doNothing.cost, f.doNothing.label]];
+    f.alternatives.forEach((p, kT) => { if (p !== f.doNothing && !options.some(o => o[2] === p.label)) options.push([(kT ? `Up to ${kT} truck${kT > 1 ? 's' : ''}` : 'Shut in wells only') + (p.cost < f.plan.cost - 1 ? ' (trucks needed at other tanks)' : ''), p.cost, p.label]); });
+    options.sort((a, b) => a[1] - b[1]);
+    out.push(`<div class="alert critical" data-f="${f.fac.id}">
+      <div class="top"><b>${f.fac.id}</b><span class="tag critical">■ PUMP FAILURE</span></div>
+      <div class="top"><span class="count">${trip}</span><span class="muted">to shutdown${h && !f.tripped ? ` · range ${Math.round(h.p10 * 60)}–${Math.round(h.p90 * 60)} min` : ''}</span></div>
+      <div class="bar" title="tank level"><i style="width:${Math.min(100, f.level)}%"></i><b style="left:${wr}%;background:var(--warning)"></b><b style="left:${sd}%;background:var(--critical)"></b></div>
+      <div class="ink2">Tank ${f.level.toFixed(1)}% · filling ${f.ratePct.toFixed(1)}%/h · repair done in ${(f.H / 60).toFixed(1)} h · ${fmt$(f.lostRevPerHr)}/h at stake</div>
+      <div style="margin-top:6px"><b>Do this:</b> ${f.plan.label} <b class="good-text">${fmt$(f.plan.cost)}</b></div>
+      <table class="alt">${options.map(o => `<tr class="${o[2] === f.plan.label ? 'best' : ''}"><td>${o[0]}</td><td>${o[2]}</td><td>${fmt$(o[1])}</td></tr>`).join('')}</table>
+    </div>`);
+  }
+  for (const e of A.others) {
+    const leak = e.category === 'pipeline_leak';
+    out.push(`<div class="alert serious" data-f="${e.facility_id}">
+      <div class="top"><b>${e.facility_id}</b><span class="tag serious">▲ ${leak ? 'LEAK' : 'PUMP WEAR'}</span></div>
+      <div class="ink2">${e.evidence.join(' · ')}</div>
+      <div>Confidence ${(e.confidence * 100).toFixed(0)}%</div><div class="bar"><i style="width:${e.confidence * 100}%;background:var(--serious)"></i></div>
+      <div><b>Do this:</b> send inspector to ${e.asset_id} <span class="muted">· since ${fmtT(e.onset_unix)}</span></div>
+      ${leak ? '' : SV && SV.mv.length ? `<div class="muted" style="margin-top:4px">💡 Repair it now: in this data, worn pumps failed ~${Math.round(SV.mv.reduce((a, m) => a + m.warnedHours, 0) / SV.mv.length)} h after the warning.</div>` : ''}
+    </div>`);
+  }
+  // Early warning: rising suspicion that has not crossed the alarm yet.
+  const open = new Set(A.others.map(e => e.facility_id + e.category));
+  for (const s of scores) for (const [kind, cat, txt] of [['leak', 'pipeline_leak', 'pipeline pressure sagging'], ['wear', 'pump_degradation', 'pump output slipping']])
+    if (s[kind] >= 0.3 && !open.has(s.id + cat)) out.push(`<div class="alert warning" data-f="${s.id}">
+      <div class="top"><b>${s.id}</b><span class="tag warning">◆ WATCH</span></div>
+      <div class="ink2">${txt}: ${(s[kind] * 100).toFixed(0)}% of the way to an alarm</div>
+      <div class="bar"><i style="width:${s[kind] * 100}%;background:var(--warning)"></i></div></div>`);
+  $('alerts').innerHTML = out.join('') || '<div class="muted">All clear. Every pump, tank and pipeline is reading normal.</div>';
+  $('alerts').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
+}
+
+// ---------- map ----------
+function renderMap(A, scores) {
+  const svg = $('map'), W = svg.clientWidth || 600, H = svg.clientHeight || 420;
+  const n = ds.systems.length, cols = Math.ceil(Math.sqrt(n * W / H)), rows = Math.ceil(n / cols);
+  const pw = W / cols, ph = H / rows;
+  const proj = (s, k) => { // each system gets its own panel and fit
+    const pts = [[s.truck_yard[0], s.truck_yard[1]], [s.disposal_site.lat, s.disposal_site.lon], ...s.facilities.map(f => [f.lat, f.lon])];
+    const la = pts.map(p => p[0]), lo = pts.map(p => p[1]), kx = Math.cos(la[0] * Math.PI / 180);
+    const x0 = Math.min(...lo), x1 = Math.max(...lo), y0 = Math.min(...la), y1 = Math.max(...la);
+    const ox = (k % cols) * pw, oy = Math.floor(k / cols) * ph;
+    const sc = Math.min((pw - 110) / ((x1 - x0) * kx || 1), (ph - 50) / ((y1 - y0) || 1));
+    const padX = (pw - (x1 - x0) * kx * sc) / 2;
+    return (lat, lon) => [ox + padX + (lon - x0) * kx * sc, oy + 30 + (y1 - lat) * sc];
+  };
+  const failing = new Map(A.failures.map(f => [f.fac.id, f]));
+  const insp = new Set(A.others.map(e => e.facility_id));
+  const leaking = new Set(A.others.filter(e => e.category === 'pipeline_leak').map(e => e.facility_id));
+  const watch = new Set(scores.filter(s => s.leak >= 0.3 || s.wear >= 0.3).map(s => s.id));
+  let g = '';
+  ds.systems.forEach((s, k) => {
+    const P = proj(s, k), ox = (k % cols) * pw, oy = Math.floor(k / cols) * ph;
+    g += `<rect x="${ox + 2}" y="${oy + 2}" width="${pw - 4}" height="${ph - 4}" rx="8" fill="none" stroke="${css('--grid')}"/><text x="${ox + 10}" y="${oy + 18}" style="font-weight:600;fill:${css('--ink')}">${s.id} · ${ds.ops.systems[s.id].emergency_fleet_size} trucks</text>`;
+    const [dx, dy] = P(s.disposal_site.lat, s.disposal_site.lon), [yx, yy] = P(s.truck_yard[0], s.truck_yard[1]);
+    for (const f of s.facilities) {
+      const [fx, fy] = P(f.lat, f.lon);
+      g += `<line x1="${fx}" y1="${fy}" x2="${dx}" y2="${dy}" stroke="${leaking.has(f.id) ? css('--serious') : css('--axis')}" stroke-width="2"/>`;
+      const fl = failing.get(f.id);
+      const trucks = fl ? fl.plan.trucks : 0;
+      if (trucks) {
+        const eta = ds.tel.t0 + i * Model.STEP + ds.ops.systems[s.id].facilities[f.id].response_min * 60;
+        g += `<line x1="${yx}" y1="${yy}" x2="${fx}" y2="${fy}" stroke="${css('--s1')}" stroke-width="2" stroke-dasharray="5 4"/>
+              <text x="${(yx + fx) / 2 + 4}" y="${(yy + fy) / 2}" style="fill:${css('--s1')}">${trucks} truck${trucks > 1 ? 's' : ''} · ETA ${fmtT(eta).slice(6)}</text>`;
+      }
+    }
+    g += `<rect x="${yx - 5}" y="${yy - 5}" width="10" height="10" fill="none" stroke="${css('--ink-2')}" stroke-width="1.5"/><text x="${yx + 8}" y="${yy + 4}">yard</text>`;
+    g += `<path d="M${dx} ${dy - 7}L${dx + 7} ${dy}L${dx} ${dy + 7}L${dx - 7} ${dy}Z" fill="none" stroke="${css('--ink-2')}" stroke-width="1.5"/><title>${s.disposal_site.id}</title>`;
+    for (const f of s.facilities) {
+      const [fx, fy] = P(f.lat, f.lon), r = f.id === sel ? 9 : 7;
+      const [shape, col] = failing.has(f.id) ? ['sq', css('--critical')] : insp.has(f.id) ? ['tri', css('--serious')] : watch.has(f.id) ? ['dia', css('--warning')] : ['dot', css('--muted')];
+      const ring = `stroke="${f.id === sel ? css('--ink') : css('--surface')}" stroke-width="2"`;
+      const mk = shape === 'sq' ? `<rect x="${fx - r}" y="${fy - r}" width="${2 * r}" height="${2 * r}" rx="2" fill="${col}" ${ring}/>`
+        : shape === 'tri' ? `<path d="M${fx} ${fy - r - 2}L${fx + r + 1} ${fy + r - 1}L${fx - r - 1} ${fy + r - 1}Z" fill="${col}" ${ring}/>`
+        : shape === 'dia' ? `<path d="M${fx} ${fy - r - 1}L${fx + r + 1} ${fy}L${fx} ${fy + r + 1}L${fx - r - 1} ${fy}Z" fill="${col}" ${ring}/>`
+        : `<circle cx="${fx}" cy="${fy}" r="${r - 1}" fill="${col}" ${ring}/>`;
+      g += `<g class="fac" data-f="${f.id}">${mk}<circle cx="${fx}" cy="${fy}" r="14" fill="transparent"/><text x="${fx + 11}" y="${fy - 8}">${f.id.slice(-1)}</text><title>${f.id}</title></g>`;
+    }
+  });
+  svg.innerHTML = g;
+  svg.querySelectorAll('.fac').forEach(el => el.onclick = () => { sel = el.dataset.f; render(); });
+}
+
+// ---------- charts (canvas, crosshair tooltip) ----------
+const charts = {};
+function setupCanvas(c) {
+  const dpr = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  return [x, w, h];
+}
+function drawChart(id, spec) {
+  const c = $(id), [x, w, h] = setupCanvas(c), m = { l: 36, r: 46, t: 8, b: 20 };
+  const X = j => m.l + (j - spec.j0) / (spec.j1 - spec.j0) * (w - m.l - m.r);
+  const Y = v => m.t + (spec.ymax - v) / (spec.ymax - spec.ymin) * (h - m.t - m.b);
+  x.font = '11px system-ui'; x.fillStyle = css('--muted'); x.strokeStyle = css('--grid'); x.lineWidth = 1;
+  for (const v of spec.ticks) { x.beginPath(); x.moveTo(m.l, Y(v)); x.lineTo(w - m.r, Y(v)); x.stroke(); x.fillText(v, 4, Y(v) + 4); }
+  for (let j = Math.ceil(spec.j0 / 72) * 72; j <= spec.j1; j += 72) x.fillText(fmtT(ds.tel.t0 + j * 300).slice(6), X(j) - 14, h - 5);
+  if (spec.future) { x.fillStyle = 'rgba(255,255,255,0.04)'; x.fillRect(X(i), m.t, X(spec.j1) - X(i), h - m.t - m.b); x.fillStyle = css('--muted'); x.fillText('forecast', X(i) + 4, m.t + 10); }
+  for (const r of spec.refs || []) { x.strokeStyle = r.color; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(m.l, Y(r.v)); x.lineTo(w - m.r, Y(r.v)); x.stroke(); x.setLineDash([]); x.fillStyle = r.color; x.fillText(r.label, w - m.r + 4, Y(r.v) + 4); }
+  for (const s of spec.series) {
+    x.strokeStyle = s.color; x.lineWidth = 2; x.setLineDash(s.dash || []); x.beginPath(); let pen = false;
+    for (const [j, v] of s.pts) { if (v == null || isNaN(v)) { pen = false; continue; } pen ? x.lineTo(X(j), Y(v)) : x.moveTo(X(j), Y(v)); pen = true; }
+    x.stroke(); x.setLineDash([]);
+  }
+  if (spec.hover != null) { x.strokeStyle = css('--ink-2'); x.lineWidth = 1; x.beginPath(); x.moveTo(X(spec.hover), m.t); x.lineTo(X(spec.hover), h - m.b); x.stroke(); }
+  charts[id] = { spec, X, inv: px => Math.round(spec.j0 + (px - m.l) / (w - m.l - m.r) * (spec.j1 - spec.j0)) };
+}
+function renderCharts(A, hover = {}) {
+  const fac = ds.facs.find(f => f.id === sel); if (!fac) return;
+  const S = fac.s, j0 = Math.max(0, i - 288);
+  const fl = A.failures.find(f => f.fac.id === sel);
+  const j1 = fl ? i + 72 : i;
+  const lvl = [], hp = [], dl = [];
+  for (let j = j0; j <= i; j++) {
+    lvl.push([j, S.level[j]]);
+    const run = S.pst[j] === 1;
+    hp.push([j, run ? 100 * S.flow[j] / fac.maxFlow : null]);
+    dl.push([j, run && S.flow[j] > 0 ? 100 * S.recv[j] / S.flow[j] : null]);
+  }
+  const pred = [];
+  if (fl && !fl.tripped) for (let j = i; j <= j1; j++) pred.push([j, Math.min(ds.lim.shutdown, fl.level + fl.ratePct * (j - i) / 12)]);
+  $('chart-title').textContent = `${fac.id} · tank level (%), last 24 h` + (fl ? ' + 6 h forecast' : '');
+  drawChart('c-level', { j0, j1, ymin: 0, ymax: 100, ticks: [0, 25, 50, 75, 100], future: !!fl, hover: hover['c-level'],
+    refs: [{ v: ds.lim.warning, color: css('--warning'), label: 'warn ' + ds.lim.warning }, { v: ds.lim.shutdown, color: css('--critical'), label: 'shut ' + ds.lim.shutdown }],
+    series: [{ pts: lvl, color: css('--s1'), name: 'level %' }, { pts: pred, color: css('--s1'), dash: [5, 4], name: 'forecast %' }] });
+  drawChart('c-health', { j0, j1: i, ymin: 80, ymax: 104, ticks: [80, 85, 90, 95, 100], hover: hover['c-health'],
+    series: [{ pts: hp, color: css('--s1'), name: 'pump health %' }, { pts: dl, color: css('--s2'), name: 'delivered %' }] });
+}
+for (const id of ['c-level', 'c-health']) {
+  const c = $(id), tip = $('tip');
+  c.onmousemove = e => {
+    const ch = charts[id]; if (!ch) return;
+    const j = Math.max(ch.spec.j0, Math.min(ch.spec.j1, ch.inv(e.offsetX)));
+    const rows = ch.spec.series.map(s => { const p = s.pts.find(q => q[0] === j); return p && p[1] != null && !isNaN(p[1]) ? `<div><span style="color:${s.color}">■</span> ${s.name} ${p[1].toFixed(1)}</div>` : ''; }).join('');
+    tip.innerHTML = `<b>${fmtT(ds.tel.t0 + j * 300)}</b>${rows || '<div class="muted">pump off</div>'}`;
+    tip.style.display = 'block'; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 10 + 'px';
+    renderCharts(Model.alertsAt(ds, rep.engine, i), { [id]: j });
+  };
+  c.onmouseleave = () => { tip.style.display = 'none'; renderCharts(Model.alertsAt(ds, rep.engine, i)); };
+}
+
+// ---------- saving even more: predictive maintenance + fleet rebalancing ----------
+let SV = null;
+function setupSavings(full) {
+  const t0 = performance.now();
+  const fleetT = Model.fleetWhatIf(ds), rb = Model.rebalance(fleetT), mv = Model.maintenanceValue(full);
+  SV = { fleetT, rb, mv, full, ms: performance.now() - t0, size: {} };
+  const mvSave = mv.reduce((a, m) => a + m.planCost, 0), rbSave = rb.moves.reduce((a, m) => a + m.gain, 0);
+  $('k-more').textContent = fmt$(mvSave + rbSave);
+  $('k-more-s').textContent = `${fmt$(mvSave)} early pump repairs · ${fmt$(rbSave)} moving idle trucks · no new trucks`;
+  const mx = Math.max(full.doNothingCost, 1);
+  $('sv-plan').innerHTML = `<div class="bar2" style="width:100%;background:var(--critical);color:#fff">Do nothing ${fmt$(full.doNothingCost)}</div>
+    <div class="bar2" style="width:${Math.max(18, 100 * full.planCost / mx)}%;background:var(--good);color:#fff">Our plans ${fmt$(full.planCost)}</div>
+    <div class="ink2" style="font-size:13px;margin-top:8px">Every truck × trip × well × exact-minute mix is checked, with shared trucks split across tanks. No plan under the rules is cheaper, so the next savings come from ② and ③.</div>`;
+  $('sv-maint').innerHTML = mv.length ? mv.map(m => `<div class="mrow" data-f="${m.facility}"><b>${m.asset}</b> · wear alert ${fmtT(m.wear.detected_unix)} → failed ${fmtT(m.failure.onset_unix)}
+      <div class="track"><i></i><b>✕</b></div><div class="muted" style="margin-top:6px">${m.warnedHours.toFixed(0)} h warning · avoid ${fmt$(m.planCost)} of trucks (${fmt$(m.doNothingCost)} if nobody acted)</div></div>`).join('')
+      + `<div style="margin-top:8px"><b class="good-text">${fmt$(mvSave)}</b> of emergency trucks avoidable this dataset</div>`
+    : '<div class="muted">No worn pump went on to fail in this dataset.</div>';
+  $('sv-maint').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { stop(); sel = el.dataset.f; seek(SVsel(el.dataset.f)); });
+  SV.size = Object.fromEntries(Object.entries(fleetT).map(([k, v]) => [k, v.now]));
+  drawFleet();
+}
+// time-travel to the wear alert of that facility
+function SVsel(fid) { const m = SV.mv.find(x => x.facility === fid); return Math.min(ds.tel.n - 1, (m.wear.detected_unix - ds.tel.t0) / Model.STEP); }
+function drawFleet() {
+  const { fleetT, size } = SV;
+  let tot = 0, tot0 = 0, n = 0, n0 = 0;
+  $('sv-fleet').innerHTML = '<tr class="muted"><td>System</td><td>Trucks</td><td></td><td>Plan cost / week</td></tr>' + Object.keys(size).map(k => {
+    const c = fleetT[k].costs[size[k]], c0 = fleetT[k].costs[fleetT[k].now]; tot += c; tot0 += c0; n += size[k]; n0 += fleetT[k].now;
+    const col = c < c0 - 1 ? 'var(--good)' : c > c0 + 1 ? 'var(--critical)' : 'inherit';
+    return `<tr><td><b>${k}</b></td><td><button data-k="${k}" data-d="-1" aria-label="fewer trucks in ${k}">−</button> ${size[k]} <button data-k="${k}" data-d="1" aria-label="more trucks in ${k}">+</button></td><td class="muted">${size[k] !== fleetT[k].now ? `(today ${fleetT[k].now})` : ''}</td><td style="color:${col}">${fmt$(c)}</td></tr>`;
+  }).join('');
+  $('sv-fleet-s').innerHTML = `${n} trucks (today ${n0}) · <b style="color:${tot < tot0 - 1 ? 'var(--good)' : tot > tot0 + 1 ? 'var(--critical)' : 'inherit'}">${fmt$(tot)}/week</b> ${tot < tot0 - 1 ? `saves ${fmt$(tot0 - tot)}` : tot > tot0 + 1 ? `costs ${fmt$(tot - tot0)} more` : ''} · computed in ${SV.ms.toFixed(0)} ms`;
+  $('sv-fleet').querySelectorAll('button').forEach(b => b.onclick = () => { const k = b.dataset.k, v = size[k] + +b.dataset.d; if (v >= 0 && v < fleetT[k].costs.length) { size[k] = v; drawFleet(); } });
+}
+$('sv-best').onclick = () => { SV.size = Object.fromEntries(Object.entries(SV.fleetT).map(([k, v]) => [k, v.now])); for (const m of SV.rb.moves) { SV.size[m.from]--; SV.size[m.to]++; } drawFleet(); $('sv-fleet-s').innerHTML += '<br>' + (SV.rb.moves.map(m => `🚚 ${m.from} → ${m.to}: saves ${fmt$(m.gain)}/week`).join('<br>') || 'Trucks are already where they save most.'); };
+$('sv-reset').onclick = () => { SV.size = Object.fromEntries(Object.entries(SV.fleetT).map(([k, v]) => [k, v.now])); drawFleet(); };
+
+// ---------- planner stress test (same code as node app/stress.js) ----------
+let stRes = [], stRun = 0;
+const MIX = [['trucks', 'trucks only', '#3987e5'], ['shut', 'switch off wells', '#d95926'], ['both', 'trucks + wells', '#199e70'], ['accept', 'accept shutdown (cheapest)', '#c98500'], ['none', 'no action needed', '#898781']];
+$('st-run').onclick = () => {
+  const my = ++stRun, N = +$('st-n').value, gen = Stress.cases(Model, N, { sabotage: $('st-sab').checked }), total = N + Math.round(N / 5);
+  stRes = []; $('st-grid').innerHTML = ''; $('st-detail').innerHTML = ''; $('st-feed').tBodies[0].innerHTML = ''; $('st-run').textContent = '■ Running…';
+  const t0 = performance.now();
+  (function chunk() {
+    if (my !== stRun) return;
+    const frag = document.createDocumentFragment(), watch = $('st-speed').value === 'watch', fresh = [];
+    for (let k = 0; k < (watch ? 1 : 40); k++) {
+      const { value: r, done } = gen.next();
+      if (done) { $('st-run').textContent = '▶ Run again'; $('st-grid').append(frag); feedRows(fresh.slice(-10)); drawStress(true, performance.now() - t0); return; }
+      const c = document.createElement('i'); c.className = (r.kind === 'joint' ? 'joint' : '') + (r.ok ? '' : ' bad'); c.dataset.k = stRes.length; c.title = r.ok ? 'match' : 'MISMATCH';
+      stRes.push(r); frag.append(c); fresh.push(r);
+    }
+    $('st-grid').append(frag); $('st-status').textContent = `${stRes.length.toLocaleString()} / ${total.toLocaleString()} cases`; drawStress(false);
+    feedRows(fresh.slice(-10)); showCase(fresh[fresh.length - 1], watch);
+    setTimeout(chunk, watch ? 250 : 0);
+  })();
+};
+// live feed: newest rows on top, last 10 kept
+function feedRows(rs) {
+  const tb = $('st-feed').tBodies[0];
+  for (const r of rs) {
+    const tr = document.createElement('tr'); tr.className = 'new'; tr.style.cursor = 'pointer';
+    const mark = r.ok ? '<b style="color:var(--good)">✓</b>' : '<b style="color:var(--critical)">✕</b>';
+    tr.innerHTML = r.kind === 'single'
+      ? `<td>${r.i + 1}</td><td>${r.sc.fac.cap}</td><td>${r.sc.level.toFixed(0)}%</td><td>${(r.sc.inflowBpd / 24).toFixed(0)}</td><td>${Math.floor(r.sc.H / 60)}h${String(r.sc.H % 60).padStart(2, '0')}</td><td>${r.F}</td><td class="pl" title="${r.plan.label}">${r.plan.label}</td><td>${fmt$(r.ours)}</td><td>${fmt$(r.brute)}</td><td>${mark}</td>`
+      : `<td>S${r.i + 1}</td><td colspan="4">${r.items.length} tanks sharing trucks</td><td>${r.F}</td><td class="pl">${r.joint.map(x => x.plan.trucks ? x.plan.trucks + '🚚' : x.plan.actions[0].type === 'shut_in_wells' ? 'wells' : '–').join(' · ')}</td><td>${fmt$(r.ours)}</td><td>${fmt$(r.brute)}</td><td>${mark}</td>`;
+    tr.onclick = () => { showCase(r, false); const sq = $('st-grid').children[stRes.indexOf(r)]; sq?.click(); };
+    tb.prepend(tr);
+  }
+  while (tb.rows.length > 10) tb.deleteRow(-1);
+}
+// "now testing": the random tank's level, nobody acting vs our plan, and brute force counting
+function showCase(r, animate) {
+  if (!r) return;
+  const c = $('st-canvas'), dpr = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  x.font = '11px system-ui';
+  if (r.kind !== 'single') {
+    $('st-now-h').textContent = `Now testing · shared-fleet system ${r.i + 1}`;
+    const mx = Math.max(...r.joint.map(j => j.doNothing.cost), 1);
+    r.joint.forEach((j, k) => { const y = 20 + k * 38; x.fillStyle = css('--ink-2'); x.fillText(`Tank ${k + 1}`, 10, y + 14);
+      x.fillStyle = css('--critical'); x.fillRect(70, y, (w - 90) * j.doNothing.cost / mx, 12); x.fillStyle = css('--s1'); x.fillRect(70, y + 14, Math.max(2, (w - 90) * j.plan.cost / mx), 12); });
+    $('st-now-t').innerHTML = `<b>${r.items.length} tanks</b> fail together and share <b>${r.F} truck${r.F === 1 ? '' : 's'}</b> · red bar = cost if nobody acts, blue = our joint plan<br>Our joint total <b>${fmt$(r.ours)}</b> · brute force tried every truck split: <b>${fmt$(r.brute)}</b> ${r.ok ? '<b style="color:var(--good)">✓ same</b>' : '<b style="color:var(--critical)">✕ different</b>'}`;
+    return;
+  }
+  const sc = r.sc, H = sc.H, pad = 34, dn = [], ours = [], tr = r.plan.actions.find(a => a.type === 'dispatch_truck'), sh = r.plan.actions.find(a => a.type === 'shut_in_wells');
+  Stress.simSafe(sc, 0, 0, [], Infinity, dn);
+  Stress.simSafe(sc, tr ? tr.trucks : 0, tr ? tr.trips_per_truck : 0, sh ? sc.wells.filter(wl => sh.wells.includes(wl.id)) : [], sh ? sh.start_after_min : Infinity, ours);
+  const lo = Math.max(0, Math.floor((Math.min(sc.level, ...ours) - 5) / 10) * 10); // zoom to this case's levels
+  const X = m => pad + m / H * (w - pad - 10), Y = v => 8 + (100 - v) / (100 - lo) * (h - 28);
+  x.strokeStyle = css('--grid'); x.fillStyle = css('--muted');
+  for (const v of [lo, Math.round((lo + 100) / 2), 100]) { x.beginPath(); x.moveTo(pad, Y(v)); x.lineTo(w - 10, Y(v)); x.stroke(); x.fillText(v + '%', 4, Y(v) + 4); }
+  x.fillText('0', pad, h - 4); x.fillText(`${H} min (repair done)`, w - 110, h - 4);
+  x.setLineDash([5, 4]); x.strokeStyle = css('--critical'); x.beginPath(); x.moveTo(pad, Y(92)); x.lineTo(w - 10, Y(92)); x.stroke(); x.setLineDash([]);
+  const line = (pts, col, start) => { x.strokeStyle = col; x.lineWidth = 2; x.beginPath(); x.moveTo(X(0), Y(sc.level)); pts.forEach((v, m) => x.lineTo(X(m + 1), Y(v))); if (pts.length < H) { x.lineTo(X(H), Y(92)); } x.stroke(); x.lineWidth = 1; };
+  line(dn, css('--critical'));
+  if (r.plan.actions[0].type !== 'none') line(ours, css('--s1'));
+  if (sh) { x.strokeStyle = css('--warning'); x.setLineDash([2, 3]); x.beginPath(); x.moveTo(X(sh.start_after_min), 8); x.lineTo(X(sh.start_after_min), h - 20); x.stroke(); x.setLineDash([]); }
+  if (tr) for (let j = 0; j < tr.trips_per_truck; j++) x.fillText('🚚', X(sc.fac.resp + j * sc.fac.cycle) - 7, 20);
+  $('st-now-h').textContent = `Now testing · emergency ${r.i + 1}`;
+  const head = `Tank <b>${sc.fac.cap} bbl</b> at <b>${sc.level.toFixed(0)}%</b> · fills ${(sc.inflowBpd / 24).toFixed(0)} bbl/h · repair in <b>${H} min</b> · ${sc.wells.length} well${sc.wells.length > 1 ? 's' : ''} · <b>${r.F}</b> truck${r.F === 1 ? '' : 's'} free`;
+  const tail = `Our plan: <b>${r.plan.label}</b> = <b>${fmt$(r.ours)}</b> (${(r.tModel * 1000).toFixed(0)} µs) · brute force best <b>${fmt$(r.brute)}</b> ${r.ok ? '<b style="color:var(--good)">✓ same</b>' : '<b style="color:var(--critical)">✕ different</b>'}`;
+  if (!animate) { $('st-now-t').innerHTML = `${head}<br>Brute force checked <b>${r.checked.toLocaleString()}</b> plans · ${tail}`; return; }
+  const t0 = performance.now();
+  (function count() { const p = Math.min(1, (performance.now() - t0) / 200);
+    $('st-now-t').innerHTML = `${head}<br>Brute force checking… <b>${Math.round(r.checked * p).toLocaleString()}</b> plans${p < 1 ? '' : ' · ' + tail}`;
+    if (p < 1) requestAnimationFrame(count); })();
+}
+function drawStress(done, ms) {
+  const S = Stress.summarize(stRes), n = Math.max(1, S.singles);
+  const pass = S.bad + S.jbad === 0;
+  $('st-stats').innerHTML = `
+    <div><small>Single-tank emergencies</small><b style="color:${S.bad ? 'var(--critical)' : 'var(--good)'}">${S.bad ? '✕ ' + S.bad + ' mismatches' : '✓ ' + S.singles.toLocaleString() + ' match'}</b><small>worst cost gap $${S.worst.toFixed(2)} · ${S.unsafe} unsafe</small></div>
+    <div><small>Shared-fleet systems</small><b style="color:${S.jbad ? 'var(--critical)' : 'var(--good)'}">${S.jbad ? '✕ ' + S.jbad + ' mismatches' : '✓ ' + S.joints.toLocaleString() + ' match'}</b><small>2–4 tanks fighting for 1–3 trucks</small></div>
+    <div><small>Speed per emergency</small><b>${(S.msModel * 1000).toFixed(0)} µs</b><small>vs brute force ${S.msBrute.toFixed(2)} ms (${(S.msBrute / Math.max(S.msModel, 1e-6)).toFixed(0)}× slower)</small></div>
+    <div><small>What the cheapest plan was</small><div class="mix">${MIX.map(([k, , c]) => S.mix[k] ? `<span style="width:${100 * S.mix[k] / n}%;background:${c}" title="${k}"></span>` : '').join('')}</div>
+      <small>${MIX.filter(([k]) => S.mix[k]).map(([k, l, c]) => `<span style="color:${c}">■</span> ${l} ${S.mix[k]}`).join(' · ')}</small></div>`;
+  if (done) $('st-status').innerHTML = `<b style="color:${pass ? 'var(--good)' : 'var(--critical)'}">${pass ? 'PASSED' : 'FAILED'}</b> · ${stRes.length.toLocaleString()} cases in ${(ms / 1000).toFixed(1)} s${$('st-sab').checked ? ' · planner was sabotaged on purpose' : ''}`;
+}
+$('st-grid').onclick = e => {
+  const k = e.target.dataset.k; if (k == null) return;
+  $('st-grid').querySelectorAll('.sel').forEach(x => x.classList.remove('sel')); e.target.classList.add('sel');
+  const r = stRes[k], mark = r.ok ? '<b style="color:var(--good)">✓ match</b>' : '<b style="color:var(--critical)">✕ mismatch</b>';
+  if (r.kind === 'single') {
+    const sc = r.sc, tTrip = (0.92 * sc.fac.cap - sc.level / 100 * sc.fac.cap) / (sc.inflowBpd / 1440);
+    $('st-detail').innerHTML = `${mark} · Tank <b>${sc.fac.cap} bbl</b> at <b>${sc.level.toFixed(1)}%</b>, filling ${(sc.inflowBpd / 24).toFixed(0)} bbl/h → overflows in ${Math.round(tTrip)} min, repair in <b>${sc.H} min</b> · ${sc.wells.length} well${sc.wells.length > 1 ? 's' : ''} · <b>${r.F}</b> truck${r.F === 1 ? '' : 's'} free (arrive ${sc.fac.resp} min, back every ${sc.fac.cycle} min)<br>
+      Our plan: <b>${r.plan.label}</b> = <b>${fmt$(r.ours)}</b> · brute force best: <b>${fmt$(r.brute)}</b> after checking ${r.checked.toLocaleString()} plans · our plan re-simulated: ${r.safe ? 'tank stays safe' : '<b style="color:var(--critical)">tank overflows</b>'}`;
+  } else {
+    $('st-detail').innerHTML = `${mark} · <b>${r.items.length} failing tanks</b> share <b>${r.F} truck${r.F === 1 ? '' : 's'}</b><br>
+      ${r.joint.map((x, j) => `Tank ${j + 1}: ${x.plan.label} (${fmt$(x.plan.cost)})`).join(' · ')}<br>Our joint total <b>${fmt$(r.ours)}</b> · brute force best split <b>${fmt$(r.brute)}</b>`;
+  }
+};
+
+// ---------- glass box log + export ----------
+function renderLog() {
+  $('log').innerHTML = rep.engine.events.slice().reverse().map(e => {
+    const p = rep.plans.get(e.event_id);
+    return `<div><b>${fmtT(e.detected_unix)}</b> ${CAT[e.category]} · ${e.facility_id} · onset ${fmtT(e.onset_unix)} · ${e.status === 'ongoing' ? '<span class="tag critical">ONGOING</span>' : 'resolved ' + fmtT(e.end_unix)}
+      <div class="muted">${p ? `plan at detection: ${p.plan.label} ${fmt$(p.plan.cost)} vs do nothing ${fmt$(p.doNothing.cost)} (${p.freeTrucks} trucks free)` : e.evidence.join(' · ')}</div></div>`;
+  }).join('') || '<div class="muted">No events yet.</div>';
+}
+$('export').onclick = () => {
+  const blob = new Blob([JSON.stringify(Model.exportEvents(ds, rep.engine, i), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'events.json'; a.click();
+};
+addEventListener('resize', () => ds && render());
+
+const qd = new URLSearchParams(location.search).get('d'); // ?d=history/full_week deep-links a dataset
+if (qd) $('dataset').value = qd;
+if (location.protocol.startsWith('http')) loadFromUrl($('dataset').value).catch(() => {});
+</script>
+</body>
+</html>
