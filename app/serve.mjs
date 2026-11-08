@@ -26,7 +26,7 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replac
 const KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
 const MODEL = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.csv': 'text/csv', '.md': 'text/markdown', '.png': 'image/png', '.mp3': 'audio/mpeg', '.css': 'text/css' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.csv': 'text/csv', '.md': 'text/markdown', '.png': 'image/png', '.mp3': 'audio/mpeg', '.css': 'text/css', '.svg': 'image/svg+xml' };
 fs.mkdirSync(CACHE, { recursive: true });
 
 // ---------- alert system: dataset + replay clock + engine ----------
@@ -147,7 +147,7 @@ http.createServer((req, res) => {
   console.error(`Port ${PORT} is already in use by another program. Try another port:\n  PORT=${PORT + 1} node app/serve.mjs`);
   process.exit(1);
 }).listen(PORT, '0.0.0.0', () => {
-  console.log(`Glass Box on http://localhost:${PORT}/app/  ·  story: /app/story.html  ·  claim links use ${PUBLIC_URL}`);
+  console.log(`TankFul on http://localhost:${PORT}/app/  ·  story: /app/story.html  ·  claim links use ${PUBLIC_URL}`);
   console.log(notifier.dryRun ? 'ntfy DRY RUN: pushes are logged, not sent' : `ntfy ${notifier.server}: subscribe your phone to ${notifier.topicFor('control_room')}`);
   console.log(KEY ? `ElevenLabs voice ON (voice ${VOICE}, model ${MODEL})` : 'ElevenLabs key not set: story falls back to the browser voice (cached clips still play)');
 });

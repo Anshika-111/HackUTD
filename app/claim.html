@@ -3,24 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claim alert</title>
+<title>TankFul · claim</title>
+<link rel="icon" type="image/svg+xml" href="/app/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #0f1216; --card: #171c23; --ink: #e8edf2; --muted: #8a97a6; --critical: #ff5a5a; --high: #ffa726; --low: #ffd54f; --good: #4cd98a; --line: #2a323c; }
-  @media (prefers-color-scheme: light) { :root { --bg: #f4f6f8; --card: #fff; --ink: #141a21; --muted: #5e6b79; --line: #e1e6ec; } }
+  :root { --bg: #1c2240; --bg-2: #0d0f22; --card: #fff6e3; --card-2: #f3e9d2; --ink: #1a1930; --muted: #5a5870; --critical: #e4533a; --high: #f08a2c; --low: #f6c445; --good: #4fae5c; --wait: #4a9fe0; --line: #e4d9bf; --display: Fredoka, Nunito, sans-serif; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.4 -apple-system, system-ui, Segoe UI, Roboto, sans-serif; padding: 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
-  h1 { font-size: 20px; margin: 0 0 6px; }
-  .sev { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; color: #000; }
-  .critical { background: var(--critical); } .high { background: var(--high); } .low { background: var(--low); } .ok { background: var(--good); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 600 16px/1.4 Nunito, -apple-system, system-ui, sans-serif; padding: 16px; }
+  ::selection { background: var(--low); }
+  .card { background: var(--card); border: 2.5px solid var(--ink); border-radius: 20px; box-shadow: 0 6px 0 var(--bg-2); padding: 18px; margin-bottom: 14px; }
+  h1 { font: 700 28px/1.1 var(--display); margin: 10px 0 6px; letter-spacing: -.02em; }
+  .sev { display: inline-block; font: 600 13px var(--display); letter-spacing: .04em; padding: 2px 10px; border-radius: 999px; border: 2.5px solid var(--ink); }
+  .critical { background: var(--critical); color: var(--card); } .high { background: var(--high); } .low { background: var(--low); } .ok { background: var(--good); }
   .muted { color: var(--muted); font-size: 14px; }
-  .big { font-size: 28px; font-weight: 700; margin: 6px 0; }
-  button { width: 100%; font: inherit; font-weight: 700; padding: 16px; border-radius: 12px; border: 0; margin-top: 10px; color: #000; background: var(--good); }
-  button.secondary { background: var(--line); color: var(--ink); }
+  .big { font: 600 24px/1.2 var(--display); margin: 6px 0 10px; }
+  button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; font: 600 19px var(--display); padding: 12px 20px; border-radius: 999px; border: 2.5px solid var(--ink); margin-top: 10px; color: var(--ink); background: var(--good); box-shadow: 0 4px 0 var(--ink); cursor: pointer; }
+  button.secondary { background: var(--card); font-size: 17px; }
   button:disabled { opacity: .5; }
-  .row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15px; }
+  button:focus-visible { outline: 3px solid var(--wait); outline-offset: 3px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 2px dashed var(--line); font-size: 15px; }
   .row:first-child { border-top: 0; }
-  .result { font-size: 18px; font-weight: 700; }
+  .row b { text-align: right; font-variant-numeric: tabular-nums; }
+  .result { font: 600 18px var(--display); }
+  .sal { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .sal svg { width: 64px; height: 76px; flex: none; }
+  .bubble { position: relative; flex: 1; background: var(--card); border: 2.5px solid var(--ink); border-radius: 18px; padding: 12px 14px; font-weight: 700; box-shadow: 0 5px 0 var(--bg-2); }
+  .bubble:after { content: ""; position: absolute; left: -16px; top: 26px; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 16px solid var(--ink); }
+  .bubble:before { content: ""; position: absolute; left: -11px; top: 29px; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-right: 12px solid var(--card); z-index: 1; }
+  .foot { color: #c9c6e0; font-size: 12px; margin-top: 14px; text-align: center; }
 </style>
 </head>
 <body>
@@ -52,11 +62,15 @@ function render() {
   const el = $('#app');
   if (!view || view.error) { el.innerHTML = `<div class="card"><h1>Link not valid</h1><div class="muted">${esc(view && view.error)}</div></div>`; return; }
   const a = view.alert, j = view.job, t = view.task, q = view.queue;
-  const head = (title, sev, sub) => `<h1>${esc(title)}</h1><span class="sev ${sev}">${esc(sev.toUpperCase())}</span> <span class="muted">${esc(sub)}</span>`;
+  const head = (title, sev, sub) => `<span class="sev ${sev}">${esc(sev.toUpperCase())}</span> <span class="muted">${esc(sub)}</span><h1>${esc(title.replace(/_/g, ' '))}</h1>`;
+  const SAL = `<svg viewBox="0 0 140 170" role="img" aria-label="Sal, the control-room helper"><path d="M70 22C70 22 24 78 24 110a46 46 0 0 0 92 0C116 78 70 22 70 22Z" fill="#4a9fe0" stroke="#1a1930" stroke-width="3.5" stroke-linejoin="round"/><path d="M38 50a32 26 0 0 1 64 0Z" fill="#f6c445" stroke="#1a1930" stroke-width="3.5" stroke-linejoin="round"/><rect x="30" y="48" width="80" height="9" rx="4.5" fill="#f6c445" stroke="#1a1930" stroke-width="3.5"/><ellipse cx="56" cy="100" rx="9" ry="10" fill="#fff6e3" stroke="#1a1930" stroke-width="3"/><ellipse cx="84" cy="100" rx="9" ry="10" fill="#fff6e3" stroke="#1a1930" stroke-width="3"/><circle cx="58" cy="100" r="4" fill="#1a1930"/><circle cx="86" cy="100" r="4" fill="#1a1930"/><path d="M46 84l16 4M78 88l16-4" fill="none" stroke="#1a1930" stroke-width="3" stroke-linecap="round"/><path d="M58 126q12-8 24 0" fill="none" stroke="#1a1930" stroke-width="3.5" stroke-linecap="round"/><path d="M28 118q-18 2-16 20" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><circle cx="14" cy="140" r="7" fill="#4a9fe0" stroke="#1a1930" stroke-width="3"/><path d="M112 116q16 0 22 10" fill="none" stroke="#1a1930" stroke-width="6" stroke-linecap="round"/><circle cx="132" cy="134" r="16" fill="#fff6e3" stroke="#1a1930" stroke-width="3.5"/><path d="M132 124v10l6 4" fill="none" stroke="#1a1930" stroke-width="3" stroke-linecap="round"/><ellipse cx="54" cy="160" rx="13" ry="6" fill="#1a1930"/><ellipse cx="88" cy="160" rx="13" ry="6" fill="#1a1930"/></svg>`;
+  let say = '';
   let h = '', btns = '';
   const stateLine = s => ({ awaiting_approval: 'Waiting for approval', awaiting_claim: 'Nobody has claimed this yet', claimed: 'Claimed', approved: 'Approved', in_progress: 'Plan in progress', awaiting_confirmation: 'Pump is off: leak status unknown until it runs again', resolved: 'Resolved', no_action_needed: 'No action needed', inspection_queued: 'In the inspection queue', watching: 'Watching' }[s] || s);
   if (view.kind === 'alert' && a) {
     const open = a.state === 'awaiting_approval' || a.state === 'awaiting_claim';
+    const P = a.approved_plan || a.plan;
+    say = a.state === 'resolved' ? 'Resolved. Nothing to do here.' : a.category === 'pump_failure' ? (open ? `You have until ${hhmm(a.approve_by_ts)}. ${P ? P.label + ' does it for ' + money(P.cost) + '.' : ''}` : a.state === 'awaiting_claim' ? 'Waiting for someone to take it.' : 'Approved. The plan is moving.') : a.category === 'pipeline_leak' ? 'Someone should look at this pipeline today.' : 'Worn pump. Get it inspected before it fails.';
     h += `<div class="card">${head(`${a.category.replace('_', ' ')} · ${a.facility_id}`, a.state === 'resolved' ? 'ok' : a.severity, `replay time ${hhmm(view.now_ts)} UTC`)}
       <div class="big">${esc(stateLine(a.state))}${a.claimed_by ? ` · ${esc(a.claimed_by)}` : ''}</div>`;
     if (a.category === 'pump_failure') {
@@ -70,6 +84,7 @@ function render() {
     if (open && !acted) btns = `<button onclick="act('claim')">${a.category === 'pump_failure' ? 'Approve this plan' : 'I’ll take it'}</button><button class="secondary" onclick="act('decline')">Can’t</button><button class="secondary" onclick="act('ack')">Acknowledge, stop re-pinging</button>`;
   } else if (view.kind === 'job' && j) {
     const open = j.state === 'open';
+    say = open ? `Leave by ${hhmm(new Date(j.claim_by_unix * 1000).toISOString())}. First to claim goes.` : 'Covered. Stand down.';
     h += `<div class="card">${head(`Truck to ${j.facility_id}`, open ? 'high' : 'ok', `replay time ${hhmm(view.now_ts)} UTC`)}
       <div class="big">${open ? `${j.trucks - j.claims.length} of ${j.trucks} truck${j.trucks > 1 ? 's' : ''} still needed` : j.state === 'covered' || j.state === 'done' ? 'Covered, stand down' : 'Plan changed: trucks no longer needed'}</div>
       <div class="row"><span>Trips</span><b>${j.trips}</b></div><div class="row"><span>Leave by</span><b>${hhmm(new Date(j.claim_by_unix * 1000).toISOString())}</b></div>
@@ -77,16 +92,18 @@ function render() {
       <div class="muted">Claimed by: ${esc(j.claims.join(', ') || 'nobody yet')}</div></div>`;
     if (open && !acted) btns = `<button onclick="act('claim')">Claim this truck</button><button class="secondary" onclick="act('decline')">Can’t</button>`;
   } else if (view.kind === 'task' && t) {
+    say = t.state === 'due' ? `Shut in ${t.wells.join(', ')} now. It is part of the approved plan.` : t.state === 'done' ? 'Done. Thank you.' : `Shut-in due at ${hhmm(t.due_ts)}.`;
     h += `<div class="card">${head(`Shut in ${t.wells.join(', ')}`, t.state === 'done' ? 'ok' : 'critical', `${t.facility_id} · due ${hhmm(t.due_ts)} UTC`)}
       <div class="big">${t.state === 'done' ? 'Done' : t.state === 'due' ? 'Do it now' : 'Scheduled'}</div></div>`;
     if (t.state !== 'done' && !acted) btns = `<button onclick="act('done')">Wells are shut in</button>`;
   } else if (view.kind === 'queue' && q) {
+    say = q.state === 'queued' ? `Inspect ${q.asset_id} by ${hhmm(q.deadline_ts)}. No rush, no re-pings.` : 'Thanks for taking it.';
     h += `<div class="card">${head(`Inspect ${q.asset_id}`, q.state === 'done' ? 'ok' : 'low', `by ${hhmm(q.deadline_ts)} UTC`)}<div class="big">${esc(q.state)}</div><div class="muted">${esc(q.reason)}</div></div>`;
     if (q.state === 'queued' && !acted) btns = `<button onclick="act('claim')">Take this inspection</button>`;
     else if (q.state === 'assigned' && !acted) btns = `<button onclick="act('done')">Inspected</button>`;
   } else h += `<div class="card"><h1>${esc(view.kind)}</h1></div>`;
-  if (result) h += `<div class="card result">${result.ok ? ({ approved: '✅ Approved. Trucks and shut-ins are being routed.', claimed: '✅ You have it.', covered: '🟢 Covered by someone else. Stand down.', declined: 'Noted. It goes to the next person.', done: '✅ Done.' }[result.result] || result.result) : '⚠ ' + esc(result.error)}${result.note ? `<div class="muted">${esc(result.note)}</div>` : ''}</div>`;
-  el.innerHTML = h + btns + `<div class="muted" style="margin-top:14px">Signed in as ${esc(view.person)} · this page checks in every minute while open</div>`;
+  if (result) h += `<div class="card result">${result.ok ? ({ approved: 'Approved. Trucks and shut-ins are being routed.', claimed: 'You have it.', covered: 'Covered by someone else. Stand down.', declined: 'Noted. It goes to the next person.', done: 'Done.' }[result.result] || result.result) : 'Problem: ' + esc(result.error)}${result.note ? `<div class="muted">${esc(result.note)}</div>` : ''}</div>`;
+  el.innerHTML = `<div class="sal">${SAL}<div class="bubble">${esc(say || 'Here is the current state.')}</div></div>` + h + btns + `<div class="foot">Signed in as ${esc(view.person)} · this page checks in every minute while open</div>`;
 }
 load().then(() => { const d = qs.get('do'); if (d && !acted && view && !view.error) act(d); });
 </script>

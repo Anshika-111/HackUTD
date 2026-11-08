@@ -1,4 +1,4 @@
-# Glass Box · Beat the Shutdown (HackUTD: ZeroDay)
+# TankFul (HackUTD: ZeroDay)
 
 An operator console for the oil-field salt-water network challenge. It finds pump failures, pipeline leaks and worn pumps from the sensor data, counts down to shutdown, and works out the cheapest fix (trucks, switching off wells, or doing nothing). Every alert shows its evidence and every plan shows its math.
 
