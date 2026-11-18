@@ -20,7 +20,7 @@
     --mono: "Azeret Mono", ui-monospace, Menlo, monospace;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  html { height: 100%; } body { min-height: 100%; } /* body grows with the page, so the sticky rail stays pinned while scrolling */
   body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.4 var(--ui); display: grid; grid-template-columns: 232px minmax(0, 1fr); }
   ::selection { background: #cfe3dc; color: var(--ink); }
   h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
@@ -44,7 +44,7 @@
   input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--rail); }
 
   /* rail */
-  .rail { background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; gap: 22px; padding: 22px 18px 18px; position: sticky; top: 0; height: 100vh; overflow: auto; }
+  .rail { background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; gap: 22px; padding: 22px 18px 18px; position: sticky; top: 0; height: 100vh; overflow: auto; align-self: start; box-sizing: border-box; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; letter-spacing: -.01em; padding: 0 4px; }
   .brand svg { width: 26px; height: 26px; flex: none; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
@@ -149,7 +149,7 @@
   .people b { font-weight: 500; } .people small { display: block; color: var(--ink-2); font-size: 13px; }
   .people .act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .people .act a { text-decoration: none; }
-  .glance { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 16px 18px 12px; }
+  .glance { display: grid; grid-template-columns: repeat(var(--cols, 5), 1fr); gap: 10px; padding: 16px 18px 12px; }
   .sys { font-size: 12px; color: var(--ink-2); } .sys b { color: var(--ink); font-weight: 500; }
   .sys .dots { display: flex; gap: 5px; margin-top: 6px; }
   .sys .dots i { width: 16px; height: 16px; border-radius: 3px; background: #cfe3dc; cursor: pointer; }
@@ -271,7 +271,7 @@
       <option value="history/snapshot_2026-10-10T0900">snapshot 10-10 09:00</option>
       <option value="test">test (judging)</option>
     </select>
-    <label class="btn">Open folder…<input id="folder" type="file" webkitdirectory multiple hidden></label>
+    <label class="btn"><span id="folder-btn">Open folder…</span><input id="folder" type="file" webkitdirectory multiple hidden></label>
     <label class="hold"><input type="checkbox" id="f-pause" checked> Pause when someone must decide</label>
   </div>
   <div class="clockbox">
@@ -430,8 +430,23 @@ $('folder').onchange = async e => {
   const files = [...e.target.files], pick = n => files.find(f => f.name === n);
   if (!pick('network.json') || !pick('ops.json') || !pick('telemetry.csv')) return alert('That folder needs network.json, ops.json and telemetry.csv');
   const [n, o, t] = await Promise.all(['network.json', 'ops.json', 'telemetry.csv'].map(x => pick(x).text()));
-  start(n, o, t, files[0].webkitRelativePath.split('/')[0]);
+  const name = files[0].webkitRelativePath.split('/')[0];
+  e.target.value = ''; // so picking the same folder again still fires
+  if (!SRV) return start(n, o, t, name);
+  // Server running: hand the files to it, so alerts, phone pushes and charts all switch to this folder together.
+  $('folder-btn').textContent = 'Loading…';
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, network: n, ops: o, telemetry: t }) }).then(r => r.json());
+    if (r.error) alert('Could not load that folder: ' + r.error);
+    await serverSync();
+  } finally { $('folder-btn').textContent = 'Open folder…'; }
 };
+// The server can be on a folder that is not in the list (an uploaded one): add it so the dropdown shows it.
+function showDataset(folder) {
+  const sel = $('dataset');
+  if (![...sel.options].some(o => o.value === folder)) sel.add(new Option(folder.replace(/^uploads\//, 'opened: '), folder));
+  sel.value = folder;
+}
 
 function start(netTxt, opsTxt, telTxt, name) {
   let t0 = performance.now();
@@ -471,7 +486,7 @@ async function serverSync() {
     FS = await r.json(); SRV = true;
   } catch { SRV = false; renderNoServer(); return; }
   $('hold').classList.toggle('on', FS.waiting && FS.playing);
-  if (!ds || FS.dataset !== curFolder) { if (!syncing) { syncing = true; curFolder = FS.dataset; $('dataset').value = FS.dataset; await loadFromUrl(FS.dataset).catch(() => {}); syncing = false; } return; }
+  if (!ds || FS.dataset !== curFolder) { if (!syncing) { syncing = true; curFolder = FS.dataset; showDataset(FS.dataset); await loadFromUrl(FS.dataset).catch(() => {}); syncing = false; } return; }
   playing = FS.playing; $('play').textContent = playing ? 'Pause' : 'Play'; $('speed').value = String(FS.speed);
   if (FS.i !== i) { if (FS.i > i && FS.i - i < 400) { while (i < FS.i) rep.step(++i); render(); } else seek(FS.i); }
   else renderField();
@@ -785,6 +800,8 @@ function renderAlso(A, scores) {
 function renderGlance(A, scores) {
   const failing = new Set(A.failures.map(f => f.fac.id)), inspect = new Set(A.others.map(e => e.facility_id)), watch = new Set(watchList(A, scores).map(w => w.id));
   $('glance-n').textContent = `${ds.facs.length} facilities`;
+  const nSys = ds.systems.length; // up to 5 in one row; more split evenly over two rows (6 → 3 + 3), never a lone straggler
+  $('glance').style.setProperty('--cols', String(nSys <= 5 ? nSys : Math.ceil(nSys / 2)));
   $('glance').innerHTML = ds.systems.map(s => `<div class="sys"><b>${s.id}</b><div class="dots">${s.facilities.map(f => `<i class="${failing.has(f.id) ? 'bad' : inspect.has(f.id) ? 'warn' : watch.has(f.id) ? 'watch' : ''}${f.id === sel ? ' sel' : ''}" data-f="${f.id}" title="${f.id}"></i>`).join('')}</div></div>`).join('');
   $('glance').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { sel = el.dataset.f; showView('network'); });
 }

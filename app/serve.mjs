@@ -79,7 +79,19 @@ function stateJson() {
   return { dataset: sim.dataset, i: sim.i, n: ds.tel.n, t0: ds.tel.t0, playing: sim.playing, speed: sim.speed, public_url: PUBLIC_URL, dry_run: notifier.dryRun, real_phones: real, totals: rep.totals(), pushes: notifier.sent().slice(-30), ...E };
 }
 
-async function body(req) { let s = ''; for await (const c of req) { s += c; if (s.length > 1e6) throw new Error('too long'); } return s ? JSON.parse(s) : {}; }
+async function body(req, max = 1e6) { let s = ''; for await (const c of req) { s += c; if (s.length > max) throw new Error('too long'); } return s ? JSON.parse(s) : {}; }
+// "Open folder…" with the server running: the browser sends the three files, the server keeps a copy in
+// HackUTD-ZeroDay/uploads/<name>/ and switches to it, so alerts, pushes and charts all follow the same data.
+function uploadDataset(b) {
+  const files = { 'network.json': b.network, 'ops.json': b.ops, 'telemetry.csv': b.telemetry };
+  if (Object.values(files).some(v => typeof v !== 'string' || !v)) throw new Error('need network.json, ops.json and telemetry.csv');
+  M.loadDataset(JSON.parse(files['network.json']), JSON.parse(files['ops.json']), files['telemetry.csv']); // reject bad data before writing anything
+  const name = String(b.name || 'folder').replace(/[^A-Za-z0-9_.-]/g, '_').replace(/^\.+/, '').slice(0, 60) || 'folder';
+  const dir = path.join(DATA, 'uploads', name);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [f, v] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), v);
+  loadDataset('uploads/' + name);
+}
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
 
 async function api(req, res, url) {
@@ -96,13 +108,14 @@ async function api(req, res, url) {
       return json(res, 200, { i: sim.i, playing: sim.playing, speed: sim.speed });
     }
     if (p === '/api/dataset' && req.method === 'POST') { const b = await body(req); loadDataset(String(b.folder)); return json(res, 200, { dataset: sim.dataset }); }
+    if (p === '/api/upload' && req.method === 'POST') { uploadDataset(await body(req, 200e6)); return json(res, 200, { dataset: sim.dataset }); }
     if (p === '/api/claim' && req.method === 'POST') { const b = await body(req); return json(res, 200, sim.eng.act(String(b.token || ''), String(b.action || 'claim'))); }
     if (p === '/api/heartbeat' && req.method === 'POST') { const b = await body(req); return json(res, 200, { ok: sim.eng.heartbeat(String(b.token || '')), now_ts: sim.eng.state().now_ts }); }
     if (p.startsWith('/api/person/') && req.method === 'POST') { const b = await body(req); return json(res, 200, { ok: sim.eng.setReachable(decodeURIComponent(p.slice(12)), !!b.reachable) }); }
     if (p.startsWith('/api/alert/')) { const v = sim.eng.forToken(p.slice(11)); return v ? json(res, 200, v) : json(res, 404, { error: 'unknown or expired link' }); }
     if (p === '/api/events.json') { res.writeHead(200, { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="events.json"' }); return res.end(JSON.stringify(M.exportEvents(sim.ds, sim.rep.engine, sim.i), null, 2)); }
     if (p === '/api/audit') { res.writeHead(200, { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="audit.json"' }); return res.end(JSON.stringify(sim.eng.audit(), null, 2)); }
-    if (p === '/api/datasets') { const out = []; for (const d of ['history', 'test']) { const dir = path.join(DATA, d); if (!fs.existsSync(dir)) continue; if (fs.existsSync(path.join(dir, 'telemetry.csv'))) out.push(d); else for (const s of fs.readdirSync(dir)) if (fs.existsSync(path.join(dir, s, 'telemetry.csv'))) out.push(d + '/' + s); } return json(res, 200, out); }
+    if (p === '/api/datasets') { const out = []; for (const d of ['history', 'test', 'uploads']) { const dir = path.join(DATA, d); if (!fs.existsSync(dir)) continue; if (fs.existsSync(path.join(dir, 'telemetry.csv'))) out.push(d); else for (const s of fs.readdirSync(dir)) if (fs.existsSync(path.join(dir, s, 'telemetry.csv'))) out.push(d + '/' + s); } return json(res, 200, out); }
     return json(res, 404, { error: 'no such api' });
   } catch (e) { console.error('api', p, e.message); return json(res, 400, { error: e.message }); }
 }
